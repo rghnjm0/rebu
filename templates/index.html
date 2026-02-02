@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Главная — Все сообщества{% endblock %}
+
+{% block content %}
+    <h1>Популярное (All)</h1>
+
+    {% for post in posts %}
+    <div class="post">
+        <div class="post-header">
+            <div class="votes">▲ {{ post.votes }}</div>
+            <div>
+                <a href="{{ url_for('main.view_post', post_id=post.id) }}">
+                    <strong>{{ post.title }}</strong>
+                </a><br>
+                в <a href="{{ url_for('main.subreddit', sub_name=post.subreddit_name) }}">r/{{ post.subreddit_name }}</a> ·
+                {{ post.username }} · {{ post.created_at }}
+            </div>
+        </div>
+        <p>{{ post.content | truncate(280) }}</p>
+        <div>
+            <a href="{{ url_for('main.vote', post_id=post.id, action='up') }}">▲</a>
+            <a href="{{ url_for('main.vote', post_id=post.id, action='down') }}">▼</a>
+               
+            <a href="{{ url_for('main.view_post', post_id=post.id) }}">Комментарии</a>
+        </div>
+    </div>
+    {% else %}
+        <p>Пока нет постов. Создайте первый!</p>
+    {% endfor %}
+{% endblock %}

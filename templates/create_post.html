@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Новый пост{% endblock %}
+
+{% block content %}
+    <h2>Создать пост</h2>
+
+    <form method="POST">
+        <label>Сообщество:
+            <select name="subreddit_id" required>
+                <option value="">— выберите сообщество —</option>
+                {% for sub in subreddits %}
+                    <option value="{{ sub.id }}">r/{{ sub.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label>Заголовок:
+            <input type="text" name="title" required maxlength="300">
+        </label>
+
+        <label>Текст поста:
+            <textarea name="content" rows="10" required placeholder="Напишите здесь..."></textarea>
+        </label>
+
+        <input type="submit" value="Опубликовать">
+    </form>
+{% endblock %}

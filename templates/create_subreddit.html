@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Создать сообщество{% endblock %}
+
+{% block content %}
+    <h2>Создать новое сообщество</h2>
+
+    <form method="POST">
+        <label>Название (r/название):
+            <input type="text" name="name" required pattern="[a-zA-Z0-9]+" minlength="3" maxlength="20"
+                   title="Только буквы и цифры, без пробелов" placeholder="например: python">
+        </label>
+
+        <label>Описание (необязательно):
+            <textarea name="description" rows="4" placeholder="Краткое описание сообщества..."></textarea>
+        </label>
+
+        <input type="submit" value="Создать сообщество">
+    </form>
+
+    <p style="margin-top:20px; color:#666;">
+        Название должно быть уникальным и состоять только из букв и цифр.
+    </p>
+{% endblock %}

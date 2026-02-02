@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}{{ post.title }} – r/{{ post.subreddit_name }}{% endblock %}
+
+{% block content %}
+    <div class="post">
+        <div class="post-header">
+            <div class="votes">▲ {{ post.votes }}</div>
+            <div>
+                <strong>{{ post.title }}</strong><br>
+                в <a href="{{ url_for('main.subreddit', sub_name=post.subreddit_name) }}">r/{{ post.subreddit_name }}</a> ·
+                {{ post.username }} · {{ post.created_at }}
+            </div>
+        </div>
+        <div style="margin:16px 0; white-space:pre-wrap;">{{ post.content }}</div>
+        <div>
+            <a href="{{ url_for('main.vote', post_id=post.id, action='up') }}">▲ Upvote</a>
+            <a href="{{ url_for('main.vote', post_id=post.id, action='down') }}">▼ Downvote</a>
+        </div>
+    </div>
+
+    <h3>Комментарии ({{ comments|length }})</h3>
+
+    {% for comment in comments %}
+    <div class="comment">
+        <strong>{{ comment.username }}</strong> · {{ comment.created_at }}<br>
+        <div style="white-space:pre-wrap;">{{ comment.content }}</div>
+    </div>
+    {% else %}
+        <p>Пока нет комментариев.</p>
+    {% endfor %}
+
+    {% if session.username %}
+    <h4>Ваш комментарий</h4>
+    <form method="POST">
+        <textarea name="content" rows="5" required placeholder="Что думаете?"></textarea><br>
+        <input type="submit" value="Отправить">
+    </form>
+    {% else %}
+        <p><a href="{{ url_for('auth.login') }}">Войдите</a>, чтобы комментировать.</p>
+    {% endif %}
+{% endblock %}
