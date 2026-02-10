@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Редактировать пост - MiniReddit{% endblock %}
+
+{% block content %}
+<div class="edit-post-container">
+    <div class="edit-post-header">
+        <h2>Редактировать пост</h2>
+        <p class="subtitle">Измените содержимое поста</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('edit_post', post_id=post.id) }}" enctype="multipart/form-data">
+        <div class="form-section">
+            <div class="form-group">
+                <label for="community_id">
+                    <i class="fas fa-users"></i> Сообщество:
+                </label>
+                <select id="community_id" name="community_id" class="form-control">
+                    <option value="">Общая лента</option>
+                    {% for community in communities %}
+                    <option value="{{ community.id }}" {% if post.community_id == community.id %}selected{% endif %}>
+                        r/{{ community.name }} - {{ community.display_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="title">
+                    <i class="fas fa-heading"></i> Заголовок: <span class="required">*</span>
+                </label>
+                <input type="text" id="title" name="title" value="{{ post.title }}"
+                       required maxlength="200" placeholder="Заголовок поста" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label for="post_type">
+                    <i class="fas fa-tag"></i> Тип поста:
+                </label>
+                <select id="post_type" name="post_type" class="form-control" onchange="toggleContentType()">
+                    <option value="text" {% if post.post_type == 'text' %}selected{% endif %}>Текст</option>
+                    <option value="link" {% if post.post_type == 'link' %}selected{% endif %}>Ссылка</option>
+                </select>
+            </div>
+
+            <!-- Текстовый контент -->
+            <div class="form-group content-text" id="content-text" {% if post.post_type != 'text' %}style="display: none;"{% endif %}>
+                <label for="content">
+                    <i class="fas fa-align-left"></i> Содержание: <span class="required">*</span>
+                </label>
+                <textarea id="content" name="content" rows="10"
+                          placeholder="Текст вашего поста..." class="form-control">{{ post.content if post.post_type == 'text' else '' }}</textarea>
+            </div>
+
+            <!-- Ссылка -->
+            <div class="form-group content-link" id="content-link" {% if post.post_type != 'link' %}style="display: none;"{% endif %}>
+                <label for="link_url">
+                    <i class="fas fa-link"></i> Ссылка: <span class="required">*</span>
+                </label>
+                <input type="url" id="link_url" name="link_url"
+                       value="{{ post.content if post.post_type == 'link' else '' }}"
+                       placeholder="https://example.com" class="form-control">
+                <small class="form-text">Введите полный URL (с http:// или https://)</small>
+            </div>
+
+            <!-- Существующие изображения -->
+            {% if media %}
+            <div class="form-group">
+                <label>
+                    <i class="fas fa-images"></i> Текущие изображения:
+                </label>
+                <div class="existing-media">
+                    {% for item in media %}
+                    <div class="media-item">
+                        {% if item.media_type == 'image' %}
+                        <img src="{{ item.media_url }}" alt="Изображение">
+                        <div class="media-actions">
+                            <label class="delete-checkbox">
+                                <input type="checkbox" name="delete_media" value="{{ item.id }}">
+                                <span>Удалить</span>
+                            </label>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Новые изображения -->
+            <div class="form-group">
+                <label for="images">
+                    <i class="fas fa-plus-circle"></i> Добавить изображения:
+                </label>
+                <input type="file" id="images" name="images" accept="image/*" multiple
+                       class="form-control">
+                <small class="form-text">Можно добавить несколько изображений (макс. 16MB каждое)</small>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Сохранить изменения
+                </button>
+                <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Отмена
+                </a>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="fas fa-trash"></i> Удалить пост
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Форма удаления -->
+    <form id="delete-form" method="POST" action="{{ url_for('delete_post', post_id=post.id) }}" style="display: none;">
+    </form>
+</div>
+
+<style>
+.edit-post-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.edit-post-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.edit-post-header h2 {
+    font-size: 28px;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+
+.edit-post-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+
+.form-section {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 30px;
+    border: 1px solid var(--border-light);
+}
+
+.existing-media {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.media-item {
+    position: relative;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.media-item img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    display: block;
+}
+
+.media-actions {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 8px;
+    display: flex;
+    justify-content: center;
+}
+
+.delete-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: white;
+    font-size: 14px;
+}
+
+.delete-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-light);
+    flex-wrap: wrap;
+}
+
+.form-actions .btn {
+    padding: 12px 24px;
+    font-size: 16px;
+}
+
+@media (max-width: 768px) {
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
+
+<script>
+function toggleContentType() {
+    const postType = document.getElementById('post_type').value;
+    const contentText = document.getElementById('content-text');
+    const contentLink = document.getElementById('content-link');
+
+    if (postType === 'text') {
+        contentText.style.display = 'block';
+        contentLink.style.display = 'none';
+    } else if (postType === 'link') {
+        contentText.style.display = 'none';
+        contentLink.style.display = 'block';
+    }
+}
+
+function confirmDelete() {
+    if (confirm('Вы уверены, что хотите удалить этот пост? Это действие нельзя отменить.')) {
+        document.getElementById('delete-form').submit();
+    }
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    toggleContentType(); // Устанавливаем правильный тип контента
+});
+</script>
+{% endblock %}

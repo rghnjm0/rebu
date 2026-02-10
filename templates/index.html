@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="posts-feed">
+    <div class="feed-header">
+        <h1>{% if title %}{{ title }}{% else %}Лента постов{% endif %}</h1>
+
+        <div class="feed-tabs">
+            <button class="feed-tab {% if not title or title == 'Лента постов' %}active{% endif %}"
+                    onclick="window.location.href='{{ url_for('index') }}'">
+                <i class="fas fa-newspaper"></i> Свежие
+            </button>
+            <button class="feed-tab {% if title == 'Горячее' %}active{% endif %}"
+                    onclick="window.location.href='{{ url_for('hot_posts') }}'">
+                <i class="fas fa-fire"></i> Горячее
+            </button>
+            {% if session.user_id %}
+            <button class="feed-tab" onclick="window.location.href='{{ url_for('bookmarks') }}'">
+                <i class="fas fa-bookmark"></i> Закладки
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not session.user_id %}
+    <div class="welcome-message">
+        <p><strong>Присоединяйтесь к сообществу!</strong> Создавайте посты, обсуждайте интересные темы и находите единомышленников.</p>
+        <div class="welcome-buttons">
+            <a href="{{ url_for('register') }}" class="btn btn-primary btn-small">
+                <i class="fas fa-user-plus"></i> Регистрация
+            </a>
+            <a href="{{ url_for('login') }}" class="btn btn-outline btn-small">
+                <i class="fas fa-sign-in-alt"></i> Войти
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if posts %}
+        {% for post in posts %}
+        <div class="post-card">
+            <div class="post-header">
+                {% if post.community_name %}
+                <a href="{{ url_for('community_detail', community_name=post.community_name) }}"
+                   class="post-community">
+                    <i class="fas fa-hashtag"></i> r/{{ post.community_name }}
+                </a>
+                {% endif %}
+
+                <div class="post-meta-info">
+                    <span class="post-author">
+                        {{ post.username }}
+                    </span>
+                    <span class="post-date">
+                        {{ post.created_at }}
+                    </span>
+                </div>
+            </div>
+
+            <h3 class="post-title">
+                <a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a>
+            </h3>
+
+            {% if post.post_type == 'text' and post.content %}
+            <div class="post-content">
+                {{ post.content[:200] }}{% if post.content|length > 200 %}...{% endif %}
+            </div>
+            {% endif %}
+
+            <div class="post-stats">
+                <div class="stat-badge vote-stat">
+                    <i class="fas fa-arrow-up"></i>
+                    <span>{{ post.upvotes - post.downvotes }} голосов</span>
+                </div>
+                <div class="stat-badge comment-stat">
+                    <i class="fas fa-comment"></i>
+                    <span>{{ post.comments_count }} комментариев</span>
+                </div>
+            </div>
+
+            <div class="post-actions">
+                <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
+                   class="action-btn vote-up {% if post.id in user_votes and user_votes[post.id] == 'up' %}active{% endif %}">
+                    <i class="fas fa-arrow-up"></i>
+                    <span class="vote-count">{{ post.upvotes }}</span>
+                </a>
+
+                <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
+                   class="action-btn vote-down {% if post.id in user_votes and user_votes[post.id] == 'down' %}active{% endif %}">
+                    <i class="fas fa-arrow-down"></i>
+                    <span class="vote-count">{{ post.downvotes }}</span>
+                </a>
+
+                <a href="{{ url_for('post_detail', post_id=post.id) }}"
+                   class="action-btn comment-btn">
+                    <i class="fas fa-comment"></i>
+                    <span>Комментарии</span>
+                </a>
+
+                {% if session.user_id %}
+                <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}"
+                   class="action-btn bookmark-btn {% if is_bookmarked(post.id) %}active{% endif %}">
+                    <i class="fas fa-bookmark"></i>
+                    <span>Закладка</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-newspaper"></i>
+            </div>
+            <h3>Пока нет постов</h3>
+            <p>Будьте первым, кто создаст интересный пост!</p>
+            {% if session.user_id %}
+            <div class="empty-state-actions">
+                <a href="{{ url_for('create_post') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Создать пост
+                </a>
+                <a href="{{ url_for('communities_list') }}" class="btn btn-outline">
+                    <i class="fas fa-users"></i> Найти сообщества
+                </a>
+            </div>
+            {% else %}
+            <div class="empty-state-actions">
+                <a href="{{ url_for('login') }}" class="btn btn-primary">Войти</a>
+                <a href="{{ url_for('register') }}" class="btn btn-outline">Регистрация</a>
+            </div>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.welcome-message {
+    background: linear-gradient(135deg, var(--bg-sidebar), var(--bg-card));
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 20px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.welcome-message p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.welcome-message p strong {
+    color: var(--text-primary);
+}
+
+.welcome-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.welcome-buttons .btn-small {
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.post-content {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 10px 0;
+    max-height: 60px;
+    overflow: hidden;
+    position: relative;
+}
+
+.post-content::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 40px;
+    height: 20px;
+    background: linear-gradient(to right, transparent, var(--bg-card));
+}
+
+.post-stats {
+    background: var(--bg-sidebar);
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    margin: 12px 0;
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+}
+
+.stat-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+}
+
+.stat-badge i {
+    font-size: 12px;
+}
+
+.vote-stat {
+    color: var(--success-color);
+}
+
+.comment-stat {
+    color: var(--info-color);
+}
+
+.post-actions {
+    display: flex;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-light);
+}
+
+.action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--bg-sidebar);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.action-btn:hover {
+    background: var(--bg-hover);
+    color: var(--primary-color);
+}
+
+.action-btn.active {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary-color);
+    border-color: var(--primary-light);
+}
+
+.vote-count {
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+    font-size: 13px;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Форматирование больших чисел
+    document.querySelectorAll('.vote-count').forEach(el => {
+        const value = parseInt(el.textContent);
+        if (value > 1000) {
+            el.textContent = (value / 1000).toFixed(1) + 'k';
+        }
+    });
+
+    // Плавный скролл для якорных ссылок
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function(e) {
+            const href = this.getAttribute('href');
+            if (href !== '#') {
+                e.preventDefault();
+                const target = document.querySelector(href);
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
