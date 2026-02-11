@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Мои закладки - MiniReddit{% endblock %}
+
+{% block content %}
+<div class="posts-feed">
+    <div class="feed-header">
+        <h1>Мои закладки</h1>
+
+        <div class="bookmarks-header">
+            <div class="bookmarks-stats">
+                <span class="stat-item">
+                    <strong>{{ posts|length }}</strong> сохранённых постов
+                </span>
+                <span class="stat-item">
+                    <i class="fas fa-bookmark" style="color: var(--accent-color);"></i>
+                    Личная коллекция
+                </span>
+            </div>
+
+            {% if posts %}
+            <div class="bookmarks-actions">
+                <button class="btn btn-outline btn-small" id="clear-all-btn">
+                    <i class="fas fa-trash-alt"></i> Очистить все
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if posts %}
+        {% for post in posts %}
+        <div class="post-card bookmarked">
+            <div class="post-card-header">
+                <div class="post-header-left">
+                    {% if post.community_name %}
+                    <a href="{{ url_for('community_detail', community_name=post.community_name) }}"
+                       class="post-community">
+                        <i class="fas fa-hashtag"></i> r/{{ post.community_name }}
+                    </a>
+                    {% endif %}
+
+                    <div class="post-meta-info">
+                        <span class="post-author">
+                            <i class="fas fa-user"></i> {{ post.username }}
+                        </span>
+                        <span class="post-date">
+                            <i class="far fa-clock"></i> {{ post.created_at }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="post-header-right">
+                    <span class="bookmark-indicator" title="Пост в закладках">
+                        <i class="fas fa-bookmark"></i>
+                    </span>
+                </div>
+            </div>
+
+            <h3 class="post-title">
+                <a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a>
+            </h3>
+
+            {% if post.post_type == 'text' and post.content %}
+            <div class="post-content">
+                {{ post.content[:250] }}{% if post.content|length > 250 %}...{% endif %}
+            </div>
+            {% endif %}
+
+            <div class="post-stats">
+                <div class="stat-badge vote-stat">
+                    <i class="fas fa-arrow-up"></i>
+                    <span>{{ post.upvotes - post.downvotes }} голосов</span>
+                </div>
+                <div class="stat-badge comment-stat">
+                    <i class="fas fa-comment"></i>
+                    <span>{{ post.comments_count }} комментариев</span>
+                </div>
+                <div class="stat-badge bookmark-stat">
+                    <i class="fas fa-bookmark"></i>
+                    <span>Сохранено</span>
+                </div>
+            </div>
+
+            <div class="post-actions">
+                <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
+                   class="action-btn vote-up {% if post.id in user_votes and user_votes[post.id] == 'up' %}active{% endif %}">
+                    <i class="fas fa-arrow-up"></i>
+                    <span class="vote-count">{{ post.upvotes }}</span>
+                </a>
+
+                <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
+                   class="action-btn vote-down {% if post.id in user_votes and user_votes[post.id] == 'down' %}active{% endif %}">
+                    <i class="fas fa-arrow-down"></i>
+                    <span class="vote-count">{{ post.downvotes }}</span>
+                </a><a href="{{ url_for('post_detail', post_id=post.id) }}"
+                   class="action-btn comment-btn">
+                    <i class="fas fa-comment"></i>
+                    <span>Комментарии</span>
+                </a>
+
+                <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}"
+                   class="action-btn bookmark-btn active">
+                    <i class="fas fa-bookmark"></i>
+                    <span>Удалить из закладок</span>
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-bookmark" style="color: var(--accent-color);"></i>
+            </div>
+            <h3>Нет закладок</h3>
+            <p>Вы пока не сохранили ни одного поста в закладки.</p>
+            <p>Нажимайте на значок закладки <i class="fas fa-bookmark"></i> в постах, чтобы сохранять их здесь.</p>
+
+            <div class="empty-state-actions">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">
+                    <i class="fas fa-newspaper"></i> Перейти в ленту
+                </a>
+                <a href="{{ url_for('hot_posts') }}" class="btn btn-outline">
+                    <i class="fas fa-fire"></i> Популярные посты
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+/* Специальные стили для страницы закладок */
+.bookmarks-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 24px 0;
+    padding: 16px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.bookmarks-stats {
+    display: flex;
+    gap: 24px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.stat-item strong {
+    font-size: 18px;
+    color: var(--accent-color);
+}
+
+.bookmarked {
+    position: relative;
+    border-left: 3px solid var(--accent-color);
+    transition: var(--transition);
+}
+
+.bookmarked:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.bookmarked::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 20px 20px 0;
+    border-color: transparent var(--accent-color) transparent transparent;
+    opacity: 0.3;
+}
+
+.post-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.post-header-left {
+    flex: 1;
+}
+
+.post-header-right {
+    display: flex;
+    align-items: center;
+}
+
+.bookmark-indicator {
+    color: var(--accent-color);
+    font-size: 18px;
+    animation: pulse 2s infinite;
+    filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.3));
+}
+
+.bookmark-stat {
+    color: var(--accent-color) !important;
+    background: rgba(245, 158, 11, 0.1);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.7;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+    100% {
+        opacity: 0.7;
+        transform: scale(1);
+    }
+}
+
+/* Стили для пустого состояния с закладками */
+.empty-state-icon .fa-bookmark {
+    color: var(--accent-color);
+    background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .bookmarks-header {
+        flex-direction: column;
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .bookmarks-stats {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .post-card-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .post-header-right {
+        align-self: flex-end;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Подтверждение удаления всех закладок
+    const clearAllBtn = document.getElementById('clear-all-btn');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', function() {
+            if (confirm('Вы уверены, что хотите удалить все закладки? Это действие нельзя отменить.')) {
+                alert('Функция массового удаления находится в разработке. Пожалуйста, удаляйте посты по одному.');
+            }
+        });
+    }
+
+    // Анимация при наведении на закладки
+    const bookmarkedPosts = document.querySelectorAll('.bookmarked');
+    bookmarkedPosts.forEach(post => {
+        post.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px)';
+            this.style.boxShadow = 'var(--shadow-lg)';
+        });
+
+        post.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = 'var(--shadow-md)';
+        });
+    });
+
+    // Форматирование больших чисел
+    document.querySelectorAll('.vote-count').forEach(el => {
+        const value = parseInt(el.textContent);
+        if (value > 1000) {
+            el.textContent = (value / 1000).toFixed(1) + 'k';
+        }
+    });
+});
+</script>
+{% endblock %}

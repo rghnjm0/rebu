@@ -248,9 +248,7 @@ def index():
             WHERE user_id = ?
         ''', (session['user_id'],))
         votes = cursor.fetchall()
-        user_votes = {vote['post_id']: vote['vote_type'] for vote in votes}
-
-    # Проверяем, добавлены ли посты в закладки
+        user_votes = {vote['post_id']: vote['vote_type'] for vote in votes}# Проверяем, добавлены ли посты в закладки
     user_bookmarks = set()
     if 'user_id' in session:
         cursor.execute('''
@@ -274,6 +272,11 @@ def register():
         email = request.form['email']
         password = request.form['password']
         confirm_password = request.form['confirm_password']
+
+        # НОВОЕ: Проверка согласия с условиями
+        if 'accept_terms' not in request.form:
+            flash('Для регистрации необходимо принять Пользовательское соглашение и Политику конфиденциальности', 'danger')
+            return redirect(url_for('register'))
 
         # Проверка паролей
         if password != confirm_password:
@@ -342,6 +345,19 @@ def logout():
     return redirect(url_for('index'))
 
 
+# НОВЫЙ МАРШРУТ: Пользовательское соглашение
+@app.route('/terms')
+def terms():
+    return render_template('terms.html')
+
+
+# НОВЫЙ МАРШРУТ: Политика конфиденциальности (заглушка)
+@app.route('/privacy')
+def privacy_policy():
+    # Можно создать отдельный шаблон или перенаправить на соглашение
+    return redirect(url_for('terms'))
+
+
 # Создание поста
 @app.route('/create', methods=['GET', 'POST'])
 def create_post():
@@ -360,7 +376,6 @@ def create_post():
         ORDER BY c.name
     ''', (session['user_id'],))
     user_communities = cursor.fetchall()
-
     if request.method == 'POST':
         title = request.form['title'].strip()
         content = request.form['content'].strip()
@@ -474,7 +489,6 @@ def community_detail(community_name):
     ''', (community_name,))
 
     community = cursor.fetchone()
-
     if not community:
         flash('Сообщество не найдено', 'danger')
         return redirect(url_for('index'))
@@ -594,15 +608,14 @@ def toggle_subscription(community_name):
 def communities_list():
     db = get_db()
     cursor = db.cursor()
-
     # Получаем все сообщества с количеством подписчиков
     cursor.execute('''
-        SELECT c.*, COUNT(cs.id) as subscribers_count
-        FROM communities c
-        LEFT JOIN community_subscriptions cs ON c.id = cs.community_id
-        GROUP BY c.id
-        ORDER BY subscribers_count DESC, c.created_at DESC
-    ''')
+            SELECT c.*, COUNT(cs.id) as subscribers_count
+            FROM communities c
+            LEFT JOIN community_subscriptions cs ON c.id = cs.community_id
+            GROUP BY c.id
+            ORDER BY subscribers_count DESC, c.created_at DESC
+        ''')
 
     communities = cursor.fetchall()
 
@@ -610,8 +623,8 @@ def communities_list():
     user_subscriptions = set()
     if 'user_id' in session:
         cursor.execute('''
-            SELECT community_id FROM community_subscriptions WHERE user_id = ?
-        ''', (session['user_id'],))
+                SELECT community_id FROM community_subscriptions WHERE user_id = ?
+            ''', (session['user_id'],))
         subscriptions = cursor.fetchall()
         user_subscriptions = {sub['community_id'] for sub in subscriptions}
 
@@ -631,13 +644,13 @@ def my_communities():
     cursor = db.cursor()
 
     cursor.execute('''
-        SELECT c.*, COUNT(DISTINCT cs.id) as subscribers_count
-        FROM communities c
-        JOIN community_subscriptions cs ON c.id = cs.community_id
-        WHERE cs.user_id = ?
-        GROUP BY c.id
-        ORDER BY c.name
-    ''', (session['user_id'],))
+            SELECT c.*, COUNT(DISTINCT cs.id) as subscribers_count
+            FROM communities c
+            JOIN community_subscriptions cs ON c.id = cs.community_id
+            WHERE cs.user_id = ?
+            GROUP BY c.id
+            ORDER BY c.name
+        ''', (session['user_id'],))
 
     communities = cursor.fetchall()
 
@@ -652,13 +665,13 @@ def post_detail(post_id):
 
     # Получаем пост с информацией о сообществе
     cursor.execute(''' 
-        SELECT p.*, u.username, c.name as community_name, c.display_name as community_display_name,
-               (p.upvotes - p.downvotes) as score
-        FROM posts p
-        JOIN users u ON p.user_id = u.id
-        LEFT JOIN communities c ON p.community_id = c.id
-        WHERE p.id = ?
-    ''', (post_id,))
+            SELECT p.*, u.username, c.name as community_name, c.display_name as community_display_name,
+                   (p.upvotes - p.downvotes) as score
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN communities c ON p.community_id = c.id
+            WHERE p.id = ?
+        ''', (post_id,))
 
     post = cursor.fetchone()
 
@@ -668,12 +681,12 @@ def post_detail(post_id):
 
     # Получаем комментарии
     cursor.execute('''
-        SELECT c.*, u.username
-        FROM comments c
-        JOIN users u ON c.user_id = u.id
-        WHERE c.post_id = ?
-        ORDER BY c.created_at ASC
-    ''', (post_id,))
+            SELECT c.*, u.username
+            FROM comments c
+            JOIN users u ON c.user_id = u.id
+            WHERE c.post_id = ?
+            ORDER BY c.created_at ASC
+        ''', (post_id,))
 
     comments = cursor.fetchall()
 
@@ -722,9 +735,7 @@ def add_comment(post_id):
     cursor.execute(
         'INSERT INTO comments (content, user_id, post_id) VALUES (?, ?, ?)',
         (content, session['user_id'], post_id)
-    )
-
-    # Увеличиваем счетчик комментариев
+    )# Увеличиваем счетчик комментариев
     cursor.execute(
         'UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?',
         (post_id,)
@@ -835,9 +846,9 @@ def hot_posts():
     user_bookmarks = set()
     if 'user_id' in session:
         cursor.execute('''
-            SELECT post_id FROM bookmarks 
-            WHERE user_id = ?
-        ''', (session['user_id'],))
+                SELECT post_id FROM bookmarks 
+                WHERE user_id = ?
+            ''', (session['user_id'],))
         bookmarks = cursor.fetchall()
         user_bookmarks = {bookmark['post_id'] for bookmark in bookmarks}
 
@@ -859,24 +870,24 @@ def bookmarks():
     cursor = db.cursor()
 
     cursor.execute('''
-        SELECT p.*, u.username, c.name as community_name, c.display_name as community_display_name,
-               (p.upvotes - p.downvotes) as score
-        FROM posts p
-        JOIN users u ON p.user_id = u.id
-        LEFT JOIN communities c ON p.community_id = c.id
-        JOIN bookmarks b ON p.id = b.post_id
-        WHERE b.user_id = ?
-        ORDER BY b.created_at DESC
-    ''', (session['user_id'],))
+            SELECT p.*, u.username, c.name as community_name, c.display_name as community_display_name,
+                   (p.upvotes - p.downvotes) as score
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN communities c ON p.community_id = c.id
+            JOIN bookmarks b ON p.id = b.post_id
+            WHERE b.user_id = ?
+            ORDER BY b.created_at DESC
+        ''', (session['user_id'],))
 
     bookmarked_posts = cursor.fetchall()
 
     # Проверяем, голосовал ли текущий пользователь за посты
     user_votes = {}
     cursor.execute('''
-        SELECT post_id, vote_type FROM votes 
-        WHERE user_id = ?
-    ''', (session['user_id'],))
+            SELECT post_id, vote_type FROM votes 
+            WHERE user_id = ?
+        ''', (session['user_id'],))
     votes = cursor.fetchall()
     user_votes = {vote['post_id']: vote['vote_type'] for vote in votes}
 
@@ -943,17 +954,15 @@ def search_communities():
     cursor = db.cursor()
 
     cursor.execute('''
-        SELECT c.*, COUNT(cs.id) as subscribers_count
-        FROM communities c
-        LEFT JOIN community_subscriptions cs ON c.id = cs.community_id
-        WHERE c.name LIKE ? OR c.display_name LIKE ? OR c.description LIKE ?
-        GROUP BY c.id
-        ORDER BY subscribers_count DESC
-    ''', (f'%{query}%', f'%{query}%', f'%{query}%'))
+            SELECT c.*, COUNT(cs.id) as subscribers_count
+            FROM communities c
+            LEFT JOIN community_subscriptions cs ON c.id = cs.community_id
+            WHERE c.name LIKE ? OR c.display_name LIKE ? OR c.description LIKE ?
+            GROUP BY c.id
+            ORDER BY subscribers_count DESC
+        ''', (f'%{query}%', f'%{query}%', f'%{query}%'))
 
-    communities = cursor.fetchall()
-
-    # Проверяем подписки пользователя
+    communities = cursor.fetchall()# Проверяем подписки пользователя
     user_subscriptions = set()
     if 'user_id' in session:
         cursor.execute('SELECT community_id FROM community_subscriptions WHERE user_id = ?', (session['user_id'],))
@@ -1048,4 +1057,4 @@ if __name__ == '__main__':
     print("  /debug/check - Check database connection")
     print("=" * 30)
 
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, host='0.0.0.0')

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Поиск: "{{ search_query }}" - MiniReddit{% endblock %}
+
+{% block content %}
+<div class="posts-feed">
+    <div class="feed-header">
+        <h1>Результаты поиска</h1>
+
+        <div class="search-info">
+            <form action="{{ url_for('search_posts') }}" method="GET" class="search-form-simple">
+                <div class="search-box">
+                    <input type="text" name="q" value="{{ search_query }}"
+                           placeholder="Поиск постов..." required>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Искать
+                    </button>
+                </div>
+            </form>
+
+            <p class="search-stats">
+                Найдено <strong>{{ posts|length }}</strong> результатов по запросу "<strong>{{ search_query }}</strong>"
+            </p>
+        </div>
+    </div>
+
+    {% if posts %}
+        {% for post in posts %}
+        <div class="post-card">
+            <div class="vote-section">
+                <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
+                   class="vote-btn up {% if post.id in user_votes and user_votes[post.id] == 'up' %}voted{% endif %}">
+                    <i class="fas fa-arrow-up"></i>
+                </a>
+                <span class="vote-count">{{ post.upvotes - post.downvotes }}</span>
+                <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
+                   class="vote-btn down {% if post.id in user_votes and user_votes[post.id] == 'down' %}voted{% endif %}">
+                    <i class="fas fa-arrow-down"></i>
+                </a>
+            </div>
+
+            <div class="post-content">
+                {% if post.community_name %}
+                <div class="post-community">
+                    <a href="{{ url_for('community_detail', community_name=post.community_name) }}">
+                        <i class="fas fa-hashtag"></i>
+                        r/{{ post.community_name }}
+                    </a>
+                </div>
+                {% endif %}
+
+                <h3 class="post-title">
+                    <a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a>
+                </h3>
+
+                <div class="post-meta">
+                    <span class="post-author">
+                        <i class="fas fa-user"></i> от {{ post.username }}
+                    </span>
+                    <span class="post-date">
+                        <i class="far fa-clock"></i> {{ post.created_at }}
+                    </span>
+                    <span class="post-votes">
+                        <i class="fas fa-arrow-up"></i> {{ post.upvotes }} /
+                        <i class="fas fa-arrow-down"></i> {{ post.downvotes }}
+                    </span>
+                </div>
+
+                <div class="post-text">
+                    {{ post.content }}
+                </div>
+
+                <div class="post-actions">
+                    <a href="{{ url_for('post_detail', post_id=post.id) }}" class="action-link">
+                        <i class="far fa-comment"></i> комментарии
+                    </a>
+                    {% if session.user_id %}
+                    <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}"
+                       class="action-link bookmark-link {% if is_bookmarked(post.id) %}active{% endif %}">
+                        <i class="fas fa-bookmark"></i>
+                        {% if is_bookmarked(post.id) %}В закладках{% else %}В закладки{% endif %}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-search"></i>
+            </div>
+            <h3>Ничего не найдено</h3>
+            <p>По запросу "<strong>{{ search_query }}</strong>" не найдено постов.</p>
+            <div class="empty-state-actions">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">
+                    <i class="fas fa-newspaper"></i> Перейти в ленту
+                </a>
+                <a href="{{ url_for('create_post') }}" class="btn btn-outline">
+                    <i class="fas fa-plus"></i> Создать пост
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.search-info {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin: 20px 0;
+    border: 1px solid var(--border-light);
+}
+
+.search-form-simple {
+    margin-bottom: 16px;
+}
+
+.search-box {
+    display: flex;
+    gap: 10px;
+}
+
+.search-box input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    color: var(--text-primary);
+    background: var(--bg-main);
+    transition: var(--transition);
+}
+
+.search-box input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.search-box .btn {
+    padding: 12px 24px;
+    font-weight: 600;
+}
+
+.search-stats {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin: 0;
+}
+
+.search-stats strong {
+    color: var(--primary-color);
+}
+
+.post-text {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 16px 0;
+    font-size: 15px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+@media (max-width: 768px) {
+    .search-box {
+        flex-direction: column;
+    }
+
+    .search-box .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}
