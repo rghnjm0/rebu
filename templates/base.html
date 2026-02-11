@@ -90,6 +90,17 @@
                     </li>
                     {% endfor %}
                 </ul>
+            </div><!-- Правовая информация - НОВЫЙ БЛОК -->
+            <div class="sidebar-section" style="margin-top: auto; padding-top: 20px;">
+                <h3>Правовая информация</h3>
+                <ul class="community-list">
+                    <li class="community-item">
+                        <a href="{{ url_for('terms') }}" class="community-link {% if request.path == '/terms' %}active{% endif %}">
+                            <i class="fas fa-gavel"></i>
+                            <span>Пользовательское соглашение</span>
+                        </a>
+                    </li>
+                </ul>
             </div>
         </aside>
 
@@ -160,9 +171,7 @@
                         </div>
                     {% endfor %}
                 {% endif %}
-            {% endwith %}
-
-            <!-- Контент страницы -->
+            {% endwith %}<!-- Контент страницы -->
             {% block content %}{% endblock %}
         </main>
     </div>

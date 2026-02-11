@@ -93,9 +93,7 @@
                    class="action-btn vote-down {% if post.id in user_votes and user_votes[post.id] == 'down' %}active{% endif %}">
                     <i class="fas fa-arrow-down"></i>
                     <span class="vote-count">{{ post.downvotes }}</span>
-                </a>
-
-                <a href="{{ url_for('post_detail', post_id=post.id) }}"
+                </a><a href="{{ url_for('post_detail', post_id=post.id) }}"
                    class="action-btn comment-btn">
                     <i class="fas fa-comment"></i>
                     <span>Комментарии</span>
@@ -165,6 +163,12 @@
 .bookmarked {
     position: relative;
     border-left: 3px solid var(--accent-color);
+    transition: var(--transition);
+}
+
+.bookmarked:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
 }
 
 .bookmarked::before {
@@ -177,6 +181,7 @@
     border-style: solid;
     border-width: 0 20px 20px 0;
     border-color: transparent var(--accent-color) transparent transparent;
+    opacity: 0.3;
 }
 
 .post-card-header {
@@ -199,22 +204,38 @@
     color: var(--accent-color);
     font-size: 18px;
     animation: pulse 2s infinite;
+    filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.3));
 }
 
 .bookmark-stat {
     color: var(--accent-color) !important;
+    background: rgba(245, 158, 11, 0.1);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
 }
 
 @keyframes pulse {
     0% {
         opacity: 0.7;
+        transform: scale(1);
     }
     50% {
         opacity: 1;
+        transform: scale(1.1);
     }
     100% {
         opacity: 0.7;
+        transform: scale(1);
     }
+}
+
+/* Стили для пустого состояния с закладками */
+.empty-state-icon .fa-bookmark {
+    color: var(--accent-color);
+    background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 /* Адаптивность */
@@ -248,8 +269,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (clearAllBtn) {
         clearAllBtn.addEventListener('click', function() {
             if (confirm('Вы уверены, что хотите удалить все закладки? Это действие нельзя отменить.')) {
-                // Здесь можно добавить AJAX-запрос для удаления всех закладок
-                // Или перенаправить на специальный маршрут
                 alert('Функция массового удаления находится в разработке. Пожалуйста, удаляйте посты по одному.');
             }
         });
