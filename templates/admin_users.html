@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+
+{% block title %}Управление пользователями - MiniReddit{% endblock %}
+
+{% block content %}
+<div class="admin-users">
+    <div class="page-header">
+        <h1><i class="fas fa-users-cog"></i> Управление пользователями</h1>
+        <a href="{{ url_for('admin_panel') }}" class="btn btn-outline">
+            <i class="fas fa-arrow-left"></i> Назад
+        </a>
+    </div>
+
+    <div class="users-table-container">
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Пользователь</th>
+                    <th>Email</th>
+                    <th>Роль</th>
+                    <th>Статус</th>
+                    <th>Посты</th>
+                    <th>Комментарии</th>
+                    <th>Дата регистрации</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>#{{ user.id }}</td>
+                    <td>
+                        <div class="user-info">
+                            <span class="user-avatar">{{ user.username|first|upper }}</span>
+                            <span class="username">{{ user.username }}</span>
+                        </div>
+                    </td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <span class="role-badge role-{{ user.role }}">
+                            {% if user.role == 'admin' %}
+                            <i class="fas fa-crown"></i> Админ
+                            {% elif user.role == 'moderator' %}
+                            <i class="fas fa-shield-alt"></i> Модератор
+                            {% else %}
+                            <i class="fas fa-user"></i> Пользователь
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {% if user.is_banned %}
+                        <span class="status-badge banned">
+                            <i class="fas fa-ban"></i> Забанен
+                        </span>
+                        {% else %}
+                        <span class="status-badge active">
+                            <i class="fas fa-check-circle"></i> Активен
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>{{ user.posts_count }}</td>
+                    <td>{{ user.comments_count }}</td>
+                    <td>{{ user.created_at[:10] }}</td>
+                    <td>
+                        <div class="action-buttons">
+                            {% if user.id != session.user_id %}
+                                {% if not user.is_banned %}
+                                <button class="btn btn-small btn-outline" onclick="showRoleModal({{ user.id }}, '{{ user.username }}', '{{ user.role }}')">
+                                    <i class="fas fa-user-tag"></i>
+                                </button>
+                                <button class="btn btn-small btn-danger" onclick="showBanModal({{ user.id }}, '{{ user.username }}')">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                                {% else %}
+                                <form method="POST" action="{{ url_for('admin_unban_user', user_id=user.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-small btn-success" onclick="return confirm('Разбанить пользователя?')">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-muted">Это вы</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модальное окно изменения роли -->
+<div id="roleModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Изменить роль пользователя</h3>
+            <button class="close-btn" onclick="closeRoleModal()">&times;</button>
+        </div>
+        <form id="roleForm" method="POST">
+            <div class="modal-body">
+                <p>Пользователь: <strong id="modalUsername"></strong></p>
+                <div class="form-group">
+                    <label>Выберите роль:</label>
+                    <select name="role" id="roleSelect" class="form-control">
+                        <option value="user">Пользователь</option>
+                        <option value="moderator">Модератор</option>
+                        <option value="admin">Администратор</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <button type="button" class="btn btn-outline" onclick="closeRoleModal()">Отмена</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модальное окно бана -->
+<div id="banModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Забанить пользователя</h3>
+            <button class="close-btn" onclick="closeBanModal()">&times;</button>
+        </div>
+        <form id="banForm" method="POST">
+            <div class="modal-body">
+                <p>Пользователь: <strong id="banUsername"></strong></p>
+                <div class="form-group">
+                    <label for="banReason">Причина бана:</label>
+                    <textarea name="reason" id="banReason" rows="3" class="form-control" placeholder="Укажите причину бана..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-danger">Забанить</button>
+                <button type="button" class="btn btn-outline" onclick="closeBanModal()">Отмена</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.admin-users {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.page-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--primary-color);
+}
+
+.users-table-container {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 24px;
+    border: 1px solid var(--border-light);
+    overflow-x: auto;
+}
+
+.users-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.users-table th {
+    text-align: left;
+    padding: 12px;
+    background: var(--bg-sidebar);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.users-table td {
+    padding: 16px 12px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.users-table tr:hover td {
+    background: var(--bg-hover);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    background: var(--primary-gradient);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.username {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.role-badge.role-admin {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.role-badge.role-moderator {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--primary-color);
+}
+
+.role-badge.role-user {
+    background: rgba(100, 116, 139, 0.1);
+    color: var(--text-secondary);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-badge.banned {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.status-badge.active {
+    background: rgba(16, 185, 129, 0.1);
+    color: var    .status-badge.active {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success-color);
+    }
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.text-muted {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 13px;
+}
+
+/* Модальные окна */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    width: 90%;
+    max-width: 500px;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.close-btn:hover {
+    color: var(--danger-color);
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-body p {
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+}
+
+.modal-body strong {
+    color: var(--text-primary);
+}
+
+.form-control {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    transition: var(--transition);
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.modal-footer {
+    padding: 20px 24px;
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+    .users-table {
+        font-size: 13px;
+    }
+
+    .users-table td, .users-table th {
+        padding: 8px;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .modal-footer {
+        flex-direction: column;
+    }
+
+    .modal-footer .btn {
+        width: 100%;
+    }
+}
+</style>
+
+<script>
+// Модальное окно для изменения роли
+function showRoleModal(userId, username, currentRole) {
+    document.getElementById('roleModal').classList.add('show');
+    document.getElementById('modalUsername').textContent = username;
+    document.getElementById('roleSelect').value = currentRole;
+    document.getElementById('roleForm').action = `/admin/user/${userId}/role`;
+}
+
+function closeRoleModal() {
+    document.getElementById('roleModal').classList.remove('show');
+}
+
+// Модальное окно для бана
+function showBanModal(userId, username) {
+    document.getElementById('banModal').classList.add('show');
+    document.getElementById('banUsername').textContent = username;
+    document.getElementById('banForm').action = `/admin/user/${userId}/ban`;
+}
+
+function closeBanModal() {
+    document.getElementById('banModal').classList.remove('show');
+}
+
+// Закрытие модальных окон по клику вне их
+window.onclick = function(event) {
+    const roleModal = document.getElementById('roleModal');
+    const banModal = document.getElementById('banModal');
+
+    if (event.target == roleModal) {
+        closeRoleModal();
+    }
+    if (event.target == banModal) {
+        closeBanModal();
+    }
+}
+</script>
+{% endblock %}

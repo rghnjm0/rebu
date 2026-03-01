@@ -1,3 +1,4 @@
+<!-- templates/index.html -->
 {% extends "base.html" %}
 
 {% block content %}
@@ -50,6 +51,11 @@
                 <div class="post-meta-info">
                     <span class="post-author">
                         {{ post.username }}
+                        {% if post.author_role == 'admin' %}
+                        <span class="role-badge admin" title="Администратор">👑</span>
+                        {% elif post.author_role == 'moderator' %}
+                        <span class="role-badge moderator" title="Модератор">🛡️</span>
+                        {% endif %}
                     </span>
                     <span class="post-date">
                         {{ post.created_at }}
@@ -103,6 +109,15 @@
                     <i class="fas fa-bookmark"></i>
                     <span>Закладка</span>
                 </a>
+
+                <!-- Кнопка жалобы для всех пользователей (кроме автора) -->
+                {% if session.user_id != post.user_id %}
+                <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}"
+                   class="action-btn report-btn" title="Пожаловаться">
+                    <i class="fas fa-flag"></i>
+                    <span>Жалоба</span>
+                </a>
+                {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -134,18 +149,68 @@
 </div>
 
 <style>
+/* Основные стили */
+.posts-feed {
+    margin-top: 16px;
+}
+
+.feed-header {
+    margin-bottom: 24px;
+}
+
+.feed-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.feed-tabs {
+    display: flex;
+    gap: 8px;
+    background-color: var(--bg-sidebar);
+    padding: 4px;
+    border-radius: var(--radius);
+    width: fit-content;
+}
+
+.feed-tab {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.feed-tab:hover {
+    background-color: var(--bg-hover);
+}
+
+.feed-tab.active {
+    background-color: white;
+    color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+}
+
 .welcome-message {
     background: linear-gradient(135deg, var(--bg-sidebar), var(--bg-card));
     border-radius: var(--radius);
-    padding: 16px;
-    margin-bottom: 20px;
-    border-left: 3px solid var(--primary-color);
+    padding: 20px;
+    margin-bottom: 24px;
+    border-left: 4px solid var(--primary-color);
 }
 
 .welcome-message p {
     color: var(--text-secondary);
-    font-size: 14px;
-    margin-bottom: 12px;
+    font-size: 15px;
+    margin-bottom: 16px;
     line-height: 1.5;
 }
 
@@ -155,19 +220,111 @@
 
 .welcome-buttons {
     display: flex;
-    gap: 10px;
+    gap: 12px;
 }
 
-.welcome-buttons .btn-small {
-    padding: 6px 12px;
+/* Карточка поста */
+.post-card {
+    background-color: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-light);
+    transition: var(--transition);
+}
+
+.post-card:hover {
+    border-color: var(--primary-light);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.post-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.post-community {
+    background: var(--primary-gradient);
+    color: white;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition);
+}
+
+.post-community:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.post-meta-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-muted);
     font-size: 13px;
+}
+
+.post-author {
+    color: var(--text-secondary);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.role-badge {
+    display: inline-block;
+    margin-left: 2px;
+    font-size: 14px;
+}
+
+.role-badge.admin {
+    color: #fbbf24;
+    filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.3));
+}
+
+.role-badge.moderator {
+    color: #60a5fa;
+    filter: drop-shadow(0 0 2px rgba(96, 165, 250, 0.3));
+}
+
+.post-date {
+    color: var(--text-light);
+}
+
+.post-title {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.post-title a {
+    color: inherit;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.post-title a:hover {
+    color: var(--primary-color);
 }
 
 .post-content {
     color: var(--text-secondary);
-    font-size: 14px;
-    line-height: 1.5;
-    margin: 10px 0;
+    line-height: 1.6;
+    margin-bottom: 16px;
+    font-size: 15px;
     max-height: 60px;
     overflow: hidden;
     position: relative;
@@ -185,11 +342,11 @@
 
 .post-stats {
     background: var(--bg-sidebar);
-    padding: 8px 12px;
+    padding: 10px 14px;
     border-radius: var(--radius-sm);
-    margin: 12px 0;
+    margin: 16px 0;
     display: flex;
-    gap: 16px;
+    gap: 20px;
     font-size: 13px;
 }
 
@@ -212,18 +369,20 @@
     color: var(--info-color);
 }
 
+/* Кнопки действий */
 .post-actions {
     display: flex;
     gap: 8px;
-    padding-top: 12px;
+    padding-top: 16px;
     border-top: 1px solid var(--border-light);
+    flex-wrap: wrap;
 }
 
 .action-btn {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 10px;
+    padding: 8px 12px;
     background: var(--bg-sidebar);
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -232,11 +391,13 @@
     font-weight: 500;
     text-decoration: none;
     transition: var(--transition);
+    cursor: pointer;
 }
 
 .action-btn:hover {
     background: var(--bg-hover);
     color: var(--primary-color);
+    transform: translateY(-1px);
 }
 
 .action-btn.active {
@@ -245,11 +406,233 @@
     border-color: var(--primary-light);
 }
 
+.action-btn.vote-up.active {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-color);
+    border-color: var(--success-color);
+}
+
+.action-btn.vote-down.active {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+.action-btn.bookmark-btn.active {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.action-btn.report-btn:hover {
+    color: var(--danger-color);
+}
+
 .vote-count {
     font-weight: 600;
     min-width: 20px;
     text-align: center;
     font-size: 13px;
+}
+
+/* Пустое состояние */
+.empty-state {
+    text-align: center;
+    padding: 60px 30px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 2px dashed var(--border-color);
+    margin: 40px 0;
+}
+
+.empty-state-icon {
+    width: 64px;
+    height: 64px;
+    background: var(--bg-sidebar);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 24px;
+    color: var(--primary-color);
+}
+
+.empty-state h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.empty-state p {
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    font-size: 15px;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+}
+
+.empty-state-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 24px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .feed-header h1 {
+        font-size: 22px;
+    }
+
+    .feed-tabs {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .feed-tab {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .post-card {
+        padding: 16px;
+    }
+
+    .post-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .post-meta-info {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .post-title {
+        font-size: 16px;
+    }
+
+    .post-stats {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .post-actions {
+        justify-content: space-between;
+    }
+
+    .action-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 8px;
+    }
+
+    .action-btn span {
+        display: none;
+    }
+
+    .action-btn i {
+        margin: 0;
+        font-size: 16px;
+    }
+
+    .empty-state-actions {
+        flex-direction: column;
+    }
+
+    .empty-state-actions .btn {
+        width: 100%;
+    }
+
+    .welcome-buttons {
+        flex-direction: column;
+    }
+
+    .welcome-buttons .btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .feed-header h1 {
+        font-size: 20px;
+    }
+
+    .post-actions {
+        flex-wrap: wrap;
+    }
+
+    .action-btn {
+        flex: none;
+        width: calc(50% - 4px);
+    }
+
+    .action-btn span {
+        display: inline;
+        font-size: 12px;
+    }
+}
+
+/* Анимации */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.post-card:hover .post-community {
+    animation: pulse 1s ease infinite;
+}
+
+/* Подсказки */
+.action-btn[title] {
+    position: relative;
+}
+
+.action-btn[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 11px;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-light);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Статусные индикаторы */
+.post-card .post-author .role-badge {
+    transition: var(--transition);
+}
+
+.post-card:hover .post-author .role-badge {
+    transform: scale(1.1);
+}
+
+/* Стили для разных ролей в посте */
+.post-author .role-badge.admin {
+    text-shadow: 0 0 5px rgba(251, 191, 36, 0.5);
+}
+
+.post-author .role-badge.moderator {
+    text-shadow: 0 0 5px rgba(96, 165, 250, 0.5);
 }
 </style>
 
@@ -260,6 +643,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const value = parseInt(el.textContent);
         if (value > 1000) {
             el.textContent = (value / 1000).toFixed(1) + 'k';
+        } else if (value > 1000000) {
+            el.textContent = (value / 1000000).toFixed(1) + 'M';
         }
     });
 
@@ -278,6 +663,90 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
+    });
+
+    // Добавляем класс для анимации при наведении
+    const postCards = document.querySelectorAll('.post-card');
+    postCards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transition = 'var(--transition)';
+        });
+    });
+
+    // Подтверждение для важных действий
+    const reportButtons = document.querySelectorAll('.action-btn.report-btn');
+    reportButtons.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            if (!confirm('Вы уверены, что хотите пожаловаться на этот пост?')) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    // Автоматическое обновление счетчиков (для демонстрации)
+    let voteButtons = document.querySelectorAll('.action-btn.vote-up, .action-btn.vote-down');
+    voteButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Здесь можно добавить анимацию загрузки
+            this.style.opacity = '0.7';
+            setTimeout(() => {
+                this.style.opacity = '1';
+            }, 200);
+        });
+    });
+
+    // Сохранение позиции скролла при возврате
+    let scrollPosition = sessionStorage.getItem('scrollPosition');
+    if (scrollPosition) {
+        window.scrollTo(0, parseInt(scrollPosition));
+        sessionStorage.removeItem('scrollPosition');
+    }
+
+    // Сохраняем позицию скролла перед уходом со страницы
+    window.addEventListener('beforeunload', function() {
+        sessionStorage.setItem('scrollPosition', window.scrollY);
+    });
+
+    // Ленивая загрузка для длинных списков (если понадобится)
+    if ('IntersectionObserver' in window) {
+        const lazyPosts = document.querySelectorAll('.post-card.lazy');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        });
+
+        lazyPosts.forEach(post => observer.observe(post));
+    }
+
+    // Добавляем информацию о времени публикации
+    document.querySelectorAll('.post-date').forEach(el => {
+        const dateStr = el.textContent.trim();
+        const postDate = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - postDate;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        let timeAgo = '';
+        if (diffMins < 60) {
+            timeAgo = `${diffMins} мин. назад`;
+        } else if (diffHours < 24) {
+            timeAgo = `${diffHours} ч. назад`;
+        } else if (diffDays < 7) {
+            timeAgo = `${diffDays} дн. назад`;
+        } else {
+            timeAgo = dateStr;
+        }
+
+        el.setAttribute('title', dateStr);
+        if (timeAgo !== dateStr) {
+            el.textContent = timeAgo;
+        }
     });
 });
 </script>

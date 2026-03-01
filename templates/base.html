@@ -1,3 +1,4 @@
+<!-- templates/base.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -57,6 +58,29 @@
                         Мои сообщества
                     </a>
                 </li>
+
+                <!-- Панель модерации только для админов и модераторов -->
+                {% if is_moderator_global() %}
+                <li class="nav-tab">
+                    <a href="{{ url_for('moderation_reports') }}" class="{% if request.path == '/moderation/reports' %}active{% endif %}">
+                        <i class="fas fa-shield-alt"></i>
+                        Модерация
+                        {% if get_moderation_count() > 0 %}
+                        <span class="badge">{{ get_moderation_count() }}</span>
+                        {% endif %}
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Админ-панель только для админов -->
+                {% if is_admin() %}
+                <li class="nav-tab">
+                    <a href="{{ url_for('admin_panel') }}" class="{% if request.path.startswith('/admin') %}active{% endif %}">
+                        <i class="fas fa-crown"></i>
+                        Админ-панель
+                    </a>
+                </li>
+                {% endif %}
                 {% endif %}
             </ul>
 
@@ -90,7 +114,9 @@
                     </li>
                     {% endfor %}
                 </ul>
-            </div><!-- Правовая информация - НОВЫЙ БЛОК -->
+            </div>
+
+            <!-- Правовая информация -->
             <div class="sidebar-section" style="margin-top: auto; padding-top: 20px;">
                 <h3>Правовая информация</h3>
                 <ul class="community-list">
@@ -129,10 +155,17 @@
                         {{ session.username|first|upper }}
                     </div>
                     <div>
-                        <div class="user-name">{{ session.username }}</div>
+                        <div class="user-name">
+                            {{ session.username }}
+                            {% if session.role == 'admin' %}
+                            <span class="role-badge-header admin" title="Администратор">👑</span>
+                            {% elif session.role == 'moderator' %}
+                            <span class="role-badge-header moderator" title="Модератор">🛡️</span>
+                            {% endif %}
+                        </div>
                         <div class="user-stats">
                             <span>Подписок: {{ get_user_subscriptions_count() }}</span>
-                            <span>Карма: 0</span>
+                            <span>Роль: {{ get_user_role_display() }}</span>
                         </div>
                     </div>
                     {% else %}
@@ -148,6 +181,23 @@
 
                 <div class="user-action">
                     {% if session.user_id %}
+                    <!-- Кнопка модерации только для админов и модераторов -->
+                    {% if is_moderator_global() %}
+                    <a href="{{ url_for('moderation_reports') }}" class="btn btn-outline btn-small" title="Панель модератора">
+                        <i class="fas fa-shield-alt"></i>
+                        {% if get_moderation_count() > 0 %}
+                        <span class="badge">{{ get_moderation_count() }}</span>
+                        {% endif %}
+                    </a>
+                    {% endif %}
+
+                    <!-- Админ-панель только для админов -->
+                    {% if is_admin() %}
+                    <a href="{{ url_for('admin_panel') }}" class="btn btn-outline btn-small" title="Админ-панель">
+                        <i class="fas fa-crown"></i>
+                    </a>
+                    {% endif %}
+
                     <a href="{{ url_for('logout') }}" class="btn btn-outline btn-small">
                         <i class="fas fa-sign-out-alt"></i> Выйти
                     </a>
@@ -171,15 +221,41 @@
                         </div>
                     {% endfor %}
                 {% endif %}
-            {% endwith %}<!-- Контент страницы -->
+            {% endwith %}
+
+            <!-- Контент страницы -->
             {% block content %}{% endblock %}
         </main>
     </div>
 
+    <style>
+    .badge {
+        background: var(--danger-color);
+        color: white;
+        border-radius: var(--radius-full);
+        padding: 2px 6px;
+        font-size: 10px;
+        margin-left: 4px;
+        font-weight: 600;
+    }
+
+    .role-badge-header {
+        display: inline-block;
+        margin-left: 4px;
+        font-size: 14px;
+    }
+
+    .role-badge-header.admin {
+        color: #fbbf24;
+    }
+
+    .role-badge-header.moderator {
+        color: #60a5fa;
+    }
+    </style>
+
     <script>
-        // Простые улучшения UX
         document.addEventListener('DOMContentLoaded', function() {
-            // Подсветка активной вкладки
             const currentPath = window.location.pathname;
             const navLinks = document.querySelectorAll('.nav-tab a');
             navLinks.forEach(link => {
@@ -188,7 +264,6 @@
                 }
             });
 
-            // Подтверждение важных действий
             const confirmActions = document.querySelectorAll('[data-confirm]');
             confirmActions.forEach(button => {
                 button.addEventListener('click', function(e) {
@@ -198,7 +273,6 @@
                 });
             });
 
-            // Плавная прокрутка для якорей
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
                 anchor.addEventListener('click', function(e) {
                     const href = this.getAttribute('href');

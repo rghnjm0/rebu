@@ -1,44 +1,668 @@
+<!-- templates/create_post.html -->
 {% extends "base.html" %}
+
+{% block title %}Создать пост - MiniReddit{% endblock %}
 
 {% block content %}
 <div class="create-post">
-    <h2>Создать новый пост</h2>
+    <div class="page-header">
+        <h1><i class="fas fa-pen-fancy"></i> Создать новый пост</h1>
+        <p class="subtitle">Поделитесь своими мыслями с сообществом</p>
+    </div>
 
-    <form method="POST" action="{{ url_for('create_post') }}">
-        <div class="form-group">
-            <label for="community_id">
-                Сообщество:
-                <small>(необязательно - если не выбрать, пост будет в общей ленте)</small>
-            </label>
-            <select id="community_id" name="community_id">
-                <option value="">Общая лента</option>
-                {% for community in communities %}
-                <option value="{{ community.id }}">r/{{ community.name }} - {{ community.display_name }}</option>
-                {% endfor %}
-            </select>
-        </div>
+    <div class="create-post-card">
+        <form method="POST" action="{{ url_for('create_post') }}" enctype="multipart/form-data" id="post-form">
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="community_id">
+                        <i class="fas fa-users"></i>
+                        Сообщество:
+                    </label>
+                    <select id="community_id" name="community_id" class="form-control">
+                        <option value="">Общая лента</option>
+                        {% for community in communities %}
+                        <option value="{{ community.id }}">r/{{ community.name }} - {{ community.display_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-        <div class="form-group">
-            <label for="title">Заголовок: <span class="required">*</span></label>
-            <input type="text" id="title" name="title" required maxlength="200" placeholder="Заголовок поста">
-        </div>
+                <div class="form-group">
+                    <label for="title">
+                        <i class="fas fa-heading"></i>
+                        Заголовок: <span class="required">*</span>
+                    </label>
+                    <input type="text" id="title" name="title" required maxlength="200"
+                           placeholder="Введите заголовок поста" class="form-control">
+                </div>
 
-        <div class="form-group">
-            <label for="content">Содержание: <span class="required">*</span></label>
-            <textarea id="content" name="content" rows="10" required placeholder="Текст вашего поста..."></textarea>
-        </div>
+                <!-- Простой Markdown редактор -->
+                <div class="form-group">
+                    <label for="content">
+                        <i class="fas fa-align-left"></i>
+                        Содержание: <span class="required">*</span>
+                    </label>
+                    <textarea id="content" name="content" class="form-control markdown-editor"
+                              placeholder="Напишите ваш пост здесь... (поддерживается Markdown)"></textarea>
+                </div>
 
-        <div class="form-group">
-            <label for="post_type">Тип поста:</label>
-            <select id="post_type" name="post_type">
-                <option value="text">Текст</option>
-                <option value="link">Ссылка</option>
-                <option value="image">Изображение</option>
-            </select>
-        </div>
+                <!-- Загрузка изображений -->
+                <div class="form-group">
+                    <label for="images">
+                        <i class="fas fa-images"></i>
+                        Добавить изображения:
+                    </label>
+                    <div class="image-upload-area" id="drop-area">
+                        <input type="file" id="images" name="images" accept="image/*" multiple class="file-input">
+                        <div class="upload-message">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Перетащите файлы сюда или кликните для выбора</p>
+                            <small>Поддерживаются JPG, PNG, GIF (макс. 5 МБ)</small>
+                        </div>
+                    </div>
+                    <div id="image-preview" class="image-preview"></div>
+                </div>
 
-        <button type="submit" class="btn btn-primary">Опубликовать</button>
-        <a href="{{ url_for('index') }}" class="btn btn-secondary">Отмена</a>
-    </form>
+                <!-- Быстрые кнопки форматирования -->
+                <div class="formatting-toolbar">
+                    <button type="button" class="format-btn" onclick="insertFormat('**', '**')" title="Жирный"><i class="fas fa-bold"></i></button>
+                    <button type="button" class="format-btn" onclick="insertFormat('*', '*')" title="Курсив"><i class="fas fa-italic"></i></button>
+                    <button type="button" class="format-btn" onclick="insertFormat('# ', '')" title="Заголовок 1"><i class="fas fa-heading"></i>1</button>
+                    <button type="button" class="format-btn" onclick="insertFormat('## ', '')" title="Заголовок 2"><i class="fas fa-heading"></i>2</button>
+                    <button type="button" class="format-btn" onclick="insertFormat('- ', '')" title="Маркированный список"><i class="fas fa-list-ul"></i></button>
+                    <button type="button" class="format-btn" onclick="insertFormat('1. ', '')" title="Нумерованный список"><i class="fas fa-list-ol"></i></button>
+                    <button type="button" class="format-btn" onclick="insertFormat('> ', '')" title="Цитата"><i class="fas fa-quote-right"></i></button>
+                    <button type="button" class="format-btn" onclick="insertFormat('`', '`')" title="Код"><i class="fas fa-code"></i></button>
+                    <button type="button" class="format-btn" onclick="insertImage()" title="Вставить изображение"><i class="fas fa-image"></i></button>
+                    <button type="button" class="format-btn" onclick="insertLink()" title="Вставить ссылку"><i class="fas fa-link"></i></button>
+                </div>
+
+                <!-- Предпросмотр -->
+                <div class="preview-section">
+                    <h3><i class="fas fa-eye"></i> Предпросмотр</h3>
+                    <div id="preview" class="preview-content"></div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-paper-plane"></i> Опубликовать
+                </button>
+                <button type="button" class="btn btn-outline" onclick="clearDraft()">
+                    <i class="fas fa-trash"></i> Очистить
+                </button>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Отмена
+                </a>
+            </div>
+        </form>
+    </div>
 </div>
+
+<!-- Подключение Marked.js для предпросмотра -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<style>
+.create-post {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.page-header {
+    margin-bottom: 24px;
+    text-align: center;
+}
+
+.page-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.page-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+
+.create-post-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 30px;
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.form-section {
+    margin-bottom: 30px;
+}
+
+.form-group {
+    margin-bottom: 24px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.form-group label i {
+    margin-right: 6px;
+    color: var(--primary-color);
+}
+
+.form-control {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    transition: var(--transition);
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+select.form-control {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 40px;
+}
+
+textarea.form-control {
+    min-height: 250px;
+    resize: vertical;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Consolas', monospace;
+    line-height: 1.6;
+}
+
+.required {
+    color: var(--danger-color);
+    margin-left: 2px;
+}
+
+/* Форматирование */
+.formatting-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 16px;
+    padding: 10px;
+    background: var(--bg-sidebar);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+}
+
+.format-btn {
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.format-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.format-btn i {
+    font-size: 14px;
+}
+
+/* Загрузка изображений */
+.image-upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius);
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+    background: var(--bg-sidebar);
+}
+
+.image-upload-area:hover {
+    border-color: var(--primary-color);
+    background: var(--bg-hover);
+}
+
+.image-upload-area.dragover {
+    border-color: var(--primary-color);
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.file-input {
+    display: none;
+}
+
+.upload-message i {
+    font-size: 48px;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.upload-message p {
+    font-size: 16px;
+    color: var(--text-primary);
+    margin-bottom: 5px;
+}
+
+.upload-message small {
+    color: var(--text-muted);
+}
+
+.image-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.preview-item {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.preview-item .remove-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 24px;
+    height: 24px;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: var(--transition);
+}
+
+.preview-item .remove-btn:hover {
+    background: var(--danger-color);
+    transform: scale(1.1);
+}
+
+.preview-item .loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview-item .loading i {
+    color: var(--primary-color);
+    font-size: 24px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Предпросмотр */
+.preview-section {
+    margin-top: 24px;
+    padding: 20px;
+    background: var(--bg-sidebar);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-light);
+}
+
+.preview-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preview-section h3 i {
+    color: var(--primary-color);
+}
+
+.preview-content {
+    background: var(--bg-card);
+    padding: 20px;
+    border-radius: var(--radius-sm);
+    min-height: 100px;
+    border: 1px solid var(--border-color);
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.preview-content h1 { font-size: 2em; margin: 0.5em 0; color: var(--text-primary); }
+.preview-content h2 { font-size: 1.75em; margin: 0.5em 0; color: var(--text-primary); }
+.preview-content h3 { font-size: 1.5em; margin: 0.5em 0; color: var(--text-primary); }
+.preview-content p { margin: 1em 0; }
+.preview-content ul, .preview-content ol { margin: 1em 0; padding-left: 2em; }
+.preview-content blockquote {
+    margin: 1em 0;
+    padding: 0.5em 1em;
+    border-left: 3px solid var(--primary-color);
+    background: var(--bg-sidebar);
+    font-style: italic;
+}
+.preview-content code {
+    background: var(--bg-main);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: monospace;
+}
+.preview-content pre {
+    background: var(--bg-main);
+    padding: 1em;
+    border-radius: var(--radius-sm);
+    overflow-x: auto;
+}
+.preview-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-sm);
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-light);
+}
+
+.form-actions .btn {
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .create-post-card {
+        padding: 20px;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+    }
+
+    .formatting-toolbar {
+        justify-content: center;
+    }
+}
+</style>
+
+<script>
+// Переменные для работы с изображениями
+let selectedFiles = [];
+
+// Обработка перетаскивания файлов
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('images');
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropArea.addEventListener(eventName, preventDefaults, false);
+});
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+['dragenter', 'dragover'].forEach(eventName => {
+    dropArea.addEventListener(eventName, highlight, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+    dropArea.addEventListener(eventName, unhighlight, false);
+});
+
+function highlight() {
+    dropArea.classList.add('dragover');
+}
+
+function unhighlight() {
+    dropArea.classList.remove('dragover');
+}
+
+dropArea.addEventListener('drop', handleDrop, false);
+fileInput.addEventListener('change', handleFiles, false);
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    handleFiles({ target: { files: files } });
+}
+
+function handleFiles(e) {
+    const files = [...e.target.files];
+
+    files.forEach(file => {
+        if (file.type.startsWith('image/')) {
+            if (file.size <= 5 * 1024 * 1024) { // 5MB лимит
+                selectedFiles.push(file);
+                displayPreview(file);
+            } else {
+                alert(`Файл ${file.name} слишком большой (макс. 5MB)`);
+            }
+        } else {
+            alert(`Файл ${file.name} не является изображением`);
+        }
+    });
+
+    // Обновляем input files
+    const dataTransfer = new DataTransfer();
+    selectedFiles.forEach(file => dataTransfer.items.add(file));
+    fileInput.files = dataTransfer.files;
+}
+
+function displayPreview(file) {
+    const preview = document.getElementById('image-preview');
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        const previewItem = document.createElement('div');
+        previewItem.className = 'preview-item';
+        previewItem.innerHTML = `
+            <img src="${e.target.result}" alt="${file.name}">
+            <button class="remove-btn" onclick="removeFile('${file.name}')">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        preview.appendChild(previewItem);
+    };
+
+    reader.readAsDataURL(file);
+}
+
+function removeFile(fileName) {
+    selectedFiles = selectedFiles.filter(f => f.name !== fileName);
+
+    // Обновляем input files
+    const dataTransfer = new DataTransfer();
+    selectedFiles.forEach(file => dataTransfer.items.add(file));
+    fileInput.files = dataTransfer.files;
+
+    // Обновляем preview
+    renderPreview();
+}
+
+function renderPreview() {
+    const preview = document.getElementById('image-preview');
+    preview.innerHTML = '';
+    selectedFiles.forEach(file => displayPreview(file));
+}
+
+// Markdown предпросмотр
+const contentTextarea = document.getElementById('content');
+const previewDiv = document.getElementById('preview');
+
+function updatePreview() {
+    const markdown = contentTextarea.value;
+    previewDiv.innerHTML = marked.parse(markdown);
+}
+
+contentTextarea.addEventListener('input', updatePreview);
+updatePreview();
+
+// Форматирование текста
+function insertFormat(before, after) {
+    const textarea = contentTextarea;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    const newText = before + selectedText + after;
+
+    textarea.value = textarea.value.substring(0, start) + newText + textarea.value.substring(end);
+    textarea.selectionStart = start + before.length;
+    textarea.selectionEnd = start + before.length + selectedText.length;
+    textarea.focus();
+    updatePreview();
+}
+
+function insertImage() {
+    const url = prompt('Введите URL изображения:');
+    if (url) {
+        insertFormat('![alt text]', `(${url})`);
+    }
+}
+
+function insertLink() {
+    const url = prompt('Введите URL ссылки:');
+    if (url) {
+        const text = prompt('Введите текст ссылки:', url);
+        insertFormat('[', `](${url})`);
+    }
+}
+
+// Автосохранение черновика
+let autoSaveTimer;
+contentTextarea.addEventListener('input', function() {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(saveDraft, 2000);
+});
+
+document.getElementById('title').addEventListener('input', function() {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(saveDraft, 2000);
+});
+
+function saveDraft() {
+    const draft = {
+        title: document.getElementById('title').value,
+        content: contentTextarea.value,
+        community: document.getElementById('community_id').value,
+        timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('post_draft', JSON.stringify(draft));
+}
+
+function loadDraft() {
+    const draft = localStorage.getItem('post_draft');
+    if (draft) {
+        const draftData = JSON.parse(draft);
+        const draftTime = new Date(draftData.timestamp);
+        const now = new Date();
+        const hoursDiff = (now - draftTime) / (1000 * 60 * 60);
+
+        if (hoursDiff < 24 && draftData.title) {
+            if (confirm('Найден несохраненный черновик. Восстановить?')) {
+                document.getElementById('title').value = draftData.title || '';
+                contentTextarea.value = draftData.content || '';
+                document.getElementById('community_id').value = draftData.community || '';
+                updatePreview();
+            } else {
+                localStorage.removeItem('post_draft');
+            }
+        } else {
+            localStorage.removeItem('post_draft');
+        }
+    }
+}
+
+function clearDraft() {
+    if (confirm('Очистить все поля?')) {
+        document.getElementById('title').value = '';
+        contentTextarea.value = '';
+        document.getElementById('community_id').value = '';
+        selectedFiles = [];
+        renderPreview();
+        updatePreview();
+        localStorage.removeItem('post_draft');
+    }
+}
+
+// Валидация формы
+document.getElementById('post-form').addEventListener('submit', function(e) {
+    const title = document.getElementById('title').value.trim();
+    const content = contentTextarea.value.trim();
+
+    if (!title) {
+        e.preventDefault();
+        alert('Пожалуйста, введите заголовок поста');
+        return false;
+    }
+
+    if (!content) {
+        e.preventDefault();
+        alert('Пожалуйста, введите содержание поста');
+        return false;
+    }
+});
+
+// Загрузка черновика при старте
+window.addEventListener('load', loadDraft);
+
+// Очистка черновика после успешной отправки
+const flashMessages = document.querySelectorAll('.alert-success');
+if (flashMessages.length > 0) {
+    localStorage.removeItem('post_draft');
+}
+</script>
 {% endblock %}

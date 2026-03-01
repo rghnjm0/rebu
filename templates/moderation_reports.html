@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+
+{% block title %}Панель модератора - MiniReddit{% endblock %}
+
+{% block content %}
+{% if not is_moderator_global() %}
+<div class="error-access">
+    <div class="error-icon">
+        <i class="fas fa-lock"></i>
+    </div>
+    <h2>Доступ запрещен</h2>
+    <p>Эта страница доступна только модераторам и администраторам.</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary">
+        <i class="fas fa-home"></i> Вернуться на главную
+    </a>
+</div>
+{% else %}
+<div class="moderation-panel">
+    <div class="panel-header">
+        <h1><i class="fas fa-shield-alt"></i> Панель модератора</h1>
+        <p class="subtitle">Жалобы на контент</p>
+    </div>
+
+    {% if is_admin() %}
+    <div class="admin-note">
+        <i class="fas fa-info-circle"></i>
+        <span>Вы вошли как администратор. Вам доступны все жалобы.</span>
+    </div>
+    {% endif %}
+
+    {% if reports %}
+        <div class="reports-list">
+            {% for report in reports %}
+            <div class="report-card {% if report.content_type == 'post' %}post-report{% else %}comment-report{% endif %}">
+                <div class="report-header">
+                    <div class="report-type">
+                        {% if report.content_type == 'post' %}
+                        <span class="type-badge post"><i class="fas fa-file-alt"></i> Пост</span>
+                        {% else %}
+                        <span class="type-badge comment"><i class="fas fa-comment"></i> Комментарий</span>
+                        {% endif %}
+
+                        <span class="report-status pending">
+                            <i class="fas fa-clock"></i> Ожидает
+                        </span>
+                    </div>
+
+                    <div class="report-meta">
+                        <span class="report-id">#{{ report.id }}</span>
+                        <span class="report-date">{{ report.created_at[:16] }}</span>
+                    </div>
+                </div>
+
+                <div class="report-content">
+                    <div class="content-preview">
+                        {% if report.content_type == 'post' %}
+                        <h4 class="content-title">
+                            <a href="{{ url_for('post_detail', post_id=report.content_id) }}">{{ report.content_title }}</a>
+                        </h4>
+                        {% else %}
+                        <div class="comment-text">"{{ report.content_title }}"</div>
+                        <a href="{{ url_for('post_detail', post_id=report.content_id) }}#comment-{{ report.content_id }}" class="view-context">
+                            <i class="fas fa-external-link-alt"></i> Посмотреть в контексте
+                        </a>
+                        {% endif %}
+
+                        {% if report.is_deleted %}
+                        <span class="deleted-badge">
+                            <i class="fas fa-trash-alt"></i> Контент уже удален
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="report-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Автор:</span>
+                            <span class="detail-value">{{ report.author_name }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Жалобу отправил:</span>
+                            <span class="detail-value">{{ report.reporter_name }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Причина:</span>
+                            <span class="detail-value reason">{{ report.reason }}</span>
+                        </div>
+                        {% if report.description %}
+                        <div class="detail-row description">
+                            <span class="detail-label">Описание:</span>
+                            <div class="description-text">{{ report.description }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="report-actions">
+                    {% if report.content_type == 'post' and not report.is_deleted %}
+                    <form method="POST" action="{{ url_for('handle_report', report_id=report.id, action='delete_post') }}" style="display: inline;">
+                        <button type="submit" class="btn btn-danger"
+                                onclick="return confirm('Удалить этот пост? Это действие нельзя отменить.')">
+                            <i class="fas fa-trash-alt"></i> Удалить пост
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    {% if report.content_type == 'comment' and not report.is_deleted %}
+                    <form method="POST" action="{{ url_for('handle_report', report_id=report.id, action='delete_comment') }}" style="display: inline;">
+                        <button type="submit" class="btn btn-danger"
+                                onclick="return confirm('Удалить этот комментарий?')">
+                            <i class="fas fa-trash-alt"></i> Удалить комментарий
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    <form method="POST" action="{{ url_for('handle_report', report_id=report.id, action='dismiss') }}" style="display: inline;">
+                        <button type="submit" class="btn btn-outline"
+                                onclick="return confirm('Отклонить жалобу? Контент останется.')">
+                            <i class="fas fa-times"></i> Отклонить
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h3>Нет новых жалоб</h3>
+            <p>В данный момент нет ожидающих жалоб. Отличная работа!</p>
+        </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<style>
+.error-access {
+    text-align: center;
+    padding: 60px 30px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 2px dashed var(--danger-color);
+    margin: 40px auto;
+    max-width: 500px;
+}
+
+.error-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 32px;
+    color: var(--danger-color);
+}
+
+.error-access h2 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.error-access p {
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    font-size: 16px;
+}
+
+.moderation-panel {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.panel-header {
+    margin-bottom: 30px;
+}
+
+.panel-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--primary-color);
+}
+
+.panel-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+
+.admin-note {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.admin-note i {
+    color: var(--primary-color);
+    font-size: 18px;
+}
+
+.admin-note span {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.reports-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.report-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 24px;
+    border: 1px solid var(--border-light);
+    transition: var(--transition);
+}
+
+.report-card:hover {
+    border-color: var(--primary-light);
+    box-shadow: var(--shadow-md);
+}
+
+.report-card.post-report {
+    border-left: 3px solid var(--info-color);
+}
+
+.report-card.comment-report {
+    border-left: 3px solid var(--accent-color);
+}
+
+.report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-light);
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.report-type {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.type-badge {
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.type-badge.post {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--info-color);
+}
+
+.type-badge.comment {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--accent-color);
+}
+
+.report-status {
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.report-status.pending {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning-color);
+}
+
+.report-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.report-id {
+    font-family: monospace;
+    font-weight: 600;
+}
+
+.content-preview {
+    margin-bottom: 16px;
+}
+
+.content-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.content-title a {
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.content-title a:hover {
+    color: var(--primary-color);
+}
+
+.comment-text {
+    background: var(--bg-sidebar);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-style: italic;
+    border-left: 2px solid var(--accent-color);
+}
+
+.view-context {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 13px;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.view-context:hover {
+    color: var(--primary-color);
+}
+
+.deleted-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.report-details {
+    background: var(--bg-sidebar);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin: 16px 0;
+}
+
+.detail-row {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.detail-row:last-child {
+    margin-bottom: 0;
+}
+
+.detail-label {
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-right: 8px;
+}
+
+.detail-value {
+    color: var(--text-primary);
+}
+
+.detail-value.reason {
+    color: var(--danger-color);
+    font-weight: 600;
+    background: rgba(239, 68, 68, 0.1);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+}
+
+.detail-row.description {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-light);
+}
+
+.description-text {
+    margin-top: 8px;
+    padding: 12px;
+    background: var(--bg-main);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    border-left: 2px solid var(--info-color);
+}
+
+.report-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-light);
+    flex-wrap: wrap;
+}
+
+.report-actions .btn {
+    flex: 1;
+    min-width: 120px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 30px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 2px dashed var(--border-color);
+    margin: 40px 0;
+}
+
+.empty-state-icon {
+    width: 64px;
+    height: 64px;
+    background: var(--bg-sidebar);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 24px;
+    color: var(--primary-color);
+}
+
+.empty-state h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.empty-state p {
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    font-size: 15px;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+    .report-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .report-meta {
+        align-self: flex-start;
+    }
+
+    .report-actions {
+        flex-direction: column;
+    }
+
+    .report-actions .btn {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}

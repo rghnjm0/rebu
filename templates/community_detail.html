@@ -48,6 +48,14 @@
                 <a href="{{ url_for('create_post') }}" class="btn btn-success">
                     Создать пост
                 </a>
+
+                <!-- НОВОЕ: Кнопка управления модераторами -->
+                {% if community.owner_id == session.user_id or (is_mod and mod_permissions.can_manage_moderators) %}
+                <a href="{{ url_for('manage_moderators', community_id=community.id) }}"
+                   class="btn btn-outline">
+                    <i class="fas fa-user-shield"></i> Модераторы
+                </a>
+                {% endif %}
             {% else %}
                 <a href="{{ url_for('login') }}" class="btn btn-primary">
                     Войдите, чтобы подписаться
@@ -88,6 +96,12 @@
                         <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}" class="bookmark-link" title="Добавить в закладки">
                             {% if is_bookmarked(post.id) %}★{% else %}☆{% endif %}
                         </a>
+                        <!-- НОВОЕ: Кнопка жалобы -->
+                        <span>•</span>
+                        <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}"
+                           class="report-link" title="Пожаловаться">
+                            ⚑
+                        </a>
                         {% endif %}
                     </div>
                     {% if post.post_type == 'text' %}
@@ -107,4 +121,16 @@
         {% endif %}
     </div>
 </div>
+
+<style>
+.report-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.report-link:hover {
+    color: var(--danger-color);
+}
+</style>
 {% endblock %}
