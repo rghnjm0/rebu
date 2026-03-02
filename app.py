@@ -724,7 +724,6 @@ def create_post():
 
     return render_template('create_post.html', communities=user_communities)
 
-
 @app.route('/post/<int:post_id>')
 @not_banned
 def post_detail(post_id):
@@ -1861,6 +1860,11 @@ def debug_check():
         return f"Database connection OK. Test result: {test[0]}"
     except Exception as e:
         return f"Database connection ERROR: {str(e)}"
+
+@app.route('/faq')
+@not_banned
+def faq():
+    return render_template('faq.html')
 
 
 if __name__ == '__main__':

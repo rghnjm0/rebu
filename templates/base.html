@@ -127,6 +127,16 @@
                         </a>
                     </li>
                 </ul>
+
+                <h3>Часто задаваемые вопросы</h3>
+                <ul class="community-list">
+                    <li class="community-item">
+                        <a href="{{ url_for('faq') }}" class="community-link {% if request.path == '/faq' %}active{% endif %}">
+                            <i class="fas fa-gavel"></i>
+                            <span>FAQ</span>
+                        </a>
+                    </li>
+                </ul>
             </div>
         </aside>
 
