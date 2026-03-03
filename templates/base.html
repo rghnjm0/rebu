@@ -7,18 +7,67 @@
     <title>{% block title %}MiniReddit{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.tiny.cloud/1/t4sz6siquna8c2qwiiui5f0pru19ajpggk7u0xkvp5n5odrd/tinymce/8/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="https://cdn.tiny.cloud/1/t4sz6siquna8c2qwiiui5f0pru19ajpggk7u0xkvp5n5odrd/tinymce/8/langs/ru.min.js" referrerpolicy="origin"></script>
 </head>
 <body>
-    <div class="app-container">
-        <!-- Боковая панель с вкладками -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <a href="{{ url_for('index') }}" class="logo">
-                    <span class="logo-icon">✧</span>
-                    MiniReddit
-                </a>
+    <header class="top-bar">
+        <div class="top-bar-container">
+            <!-- Логотип слева -->
+            <a href="{{ url_for('index') }}" class="top-logo">
+                MiniReddit
+            </a>
+
+            <!-- Поиск по центру -->
+            <div class="top-search">
+                <form action="{{ url_for('search_posts') }}" method="GET" class="top-search-form">
+                    <input type="text" name="q"
+                        placeholder="Поиск постов, сообществ..."
+                        value="{{ request.args.get('q', '') }}"
+                        aria-label="Поиск">
+                    <button type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </form>
             </div>
 
+            <!-- Правая часть: профиль / действия -->
+            <div class="top-user">
+                {% if session.user_id %}
+                    <a href="{{ url_for('index') }}" class="user-avatar-link" title="{{ session.username }}">
+                        <div class="user-avatar small">
+                            {{ session.username|first|upper }}
+                        </div>
+                    </a>
+
+                    {% if is_moderator_global() %}
+                    <a href="{{ url_for('moderation_reports') }}" class="top-icon-btn" title="Модерация">
+                        <i class="fas fa-shield-alt"></i>
+                    </a>
+                    {% endif %}
+
+                    {% if is_admin() %}
+                    <a href="{{ url_for('admin_panel') }}" class="top-icon-btn" title="Админ-панель">
+                        <i class="fas fa-crown"></i>
+                    </a>
+                    {% endif %}
+
+                    <a href="{{ url_for('logout') }}" class="top-btn logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="top-btn login-btn">Войти</a>
+                    <a href="{{ url_for('register') }}" class="top-btn register-btn">Регистрация</a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    
+
+
+    <div class="app-container">
+        <aside class="sidebar">
             <ul class="nav-tabs">
                 <li class="nav-tab">
                     <a href="{{ url_for('index') }}" class="{% if request.path == '/' %}active{% endif %}">
@@ -142,86 +191,6 @@
 
         <!-- Основной контент -->
         <main class="main-content">
-            <!-- Поиск -->
-            <div class="simple-search">
-                <form action="{{ url_for('search_posts') }}" method="GET" class="simple-search-form">
-                    <div class="search-input-group">
-                        <input type="text" name="q"
-                               placeholder="Поиск постов..."
-                               value="{{ request.args.get('q', '') }}"
-                               aria-label="Поиск постов">
-                        <button type="submit" class="search-button">
-                            <i class="fas fa-search"></i>
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Панель пользователя -->
-            <div class="user-nav">
-                <div class="user-info">
-                    {% if session.user_id %}
-                    <div class="user-avatar">
-                        {{ session.username|first|upper }}
-                    </div>
-                    <div>
-                        <div class="user-name">
-                            {{ session.username }}
-                            {% if session.role == 'admin' %}
-                            <span class="role-badge-header admin" title="Администратор">👑</span>
-                            {% elif session.role == 'moderator' %}
-                            <span class="role-badge-header moderator" title="Модератор">🛡️</span>
-                            {% endif %}
-                        </div>
-                        <div class="user-stats">
-                            <span>Подписок: {{ get_user_subscriptions_count() }}</span>
-                            <span>Роль: {{ get_user_role_display() }}</span>
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="user-avatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div>
-                        <div class="user-name">Гость</div>
-                        <div class="user-stats">Войдите, чтобы участвовать</div>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <div class="user-action">
-                    {% if session.user_id %}
-                    <!-- Кнопка модерации только для админов и модераторов -->
-                    {% if is_moderator_global() %}
-                    <a href="{{ url_for('moderation_reports') }}" class="btn btn-outline btn-small" title="Панель модератора">
-                        <i class="fas fa-shield-alt"></i>
-                        {% if get_moderation_count() > 0 %}
-                        <span class="badge">{{ get_moderation_count() }}</span>
-                        {% endif %}
-                    </a>
-                    {% endif %}
-
-                    <!-- Админ-панель только для админов -->
-                    {% if is_admin() %}
-                    <a href="{{ url_for('admin_panel') }}" class="btn btn-outline btn-small" title="Админ-панель">
-                        <i class="fas fa-crown"></i>
-                    </a>
-                    {% endif %}
-
-                    <a href="{{ url_for('logout') }}" class="btn btn-outline btn-small">
-                        <i class="fas fa-sign-out-alt"></i> Выйти
-                    </a>
-                    {% else %}
-                    <a href="{{ url_for('login') }}" class="btn btn-primary btn-small">
-                        <i class="fas fa-sign-in-alt"></i> Войти
-                    </a>
-                    <a href="{{ url_for('register') }}" class="btn btn-outline btn-small">
-                        <i class="fas fa-user-plus"></i> Регистрация
-                    </a>
-                    {% endif %}
-                </div>
-            </div>
-
             <!-- Сообщения -->
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
