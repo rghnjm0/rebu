@@ -21,7 +21,7 @@
                     Создатель: <a href="#">{{ community.owner_name }}</a>
                 </span>
                 <span class="meta-item">
-                    Создано: {{ community.created_at }}
+                    Создано: {{ community.created_at[:10] }}
                 </span>
                 {% if community.is_public %}
                 <span class="meta-item public">Публичное</span>
@@ -49,12 +49,11 @@
                     Создать пост
                 </a>
 
-                <!-- НОВОЕ: Кнопка управления модераторами -->
-                {% if community.owner_id == session.user_id or (is_mod and mod_permissions.can_manage_moderators) %}
-                <a href="{{ url_for('manage_moderators', community_id=community.id) }}"
-                   class="btn btn-outline">
-                    <i class="fas fa-user-shield"></i> Модераторы
-                </a>
+                <!-- Кнопка удаления сообщества для владельца или админа -->
+                {% if community.owner_id == session.user_id or is_admin() %}
+                <button onclick="showDeleteCommunityModal()" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Удалить сообщество
+                </button>
                 {% endif %}
             {% else %}
                 <a href="{{ url_for('login') }}" class="btn btn-primary">
@@ -69,7 +68,7 @@
 
         {% if posts %}
             {% for post in posts %}
-            <div class="post">
+            <div class="post-card">
                 <div class="vote">
                     <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
                        class="vote-btn up {% if post.id in user_votes and user_votes[post.id] == 'up' %}voted{% endif %}">
@@ -84,28 +83,42 @@
                 <div class="post-content">
                     <h3><a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a></h3>
                     <div class="post-meta">
-                        <span>от {{ post.username }}</span>
+                        <span class="post-author">
+                            от {{ post.username }}
+                            {% if post.author_role == 'admin' %}
+                            <span class="role-badge admin" title="Администратор">👑</span>
+                            {% elif post.author_role == 'moderator' %}
+                            <span class="role-badge moderator" title="Модератор">🛡️</span>
+                            {% endif %}
+                        </span>
                         <span>•</span>
-                        <span>{{ post.created_at }}</span>
+                        <span>{{ post.created_at[:16] }}</span>
                         <span>•</span>
-                        <span>{{ post.upvotes }} ↑ / {{ post.downvotes }} ↓</span>
+                        <span class="vote-info">
+                            <i class="fas fa-arrow-up"></i> {{ post.upvotes }}
+                            <i class="fas fa-arrow-down"></i> {{ post.downvotes }}
+                        </span>
                         <span>•</span>
-                        <a href="{{ url_for('post_detail', post_id=post.id) }}">комментарии</a>
+                        <a href="{{ url_for('post_detail', post_id=post.id) }}">
+                            <i class="fas fa-comment"></i> {{ post.comments_count }}
+                        </a>
                         {% if session.user_id %}
                         <span>•</span>
-                        <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}" class="bookmark-link" title="Добавить в закладки">
-                            {% if is_bookmarked(post.id) %}★{% else %}☆{% endif %}
+                        <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}" class="bookmark-link {% if is_bookmarked(post.id) %}active{% endif %}" title="Добавить в закладки">
+                            <i class="fas fa-bookmark"></i>
                         </a>
-                        <!-- НОВОЕ: Кнопка жалобы -->
+                        <!-- Кнопка жалобы -->
+                        {% if session.user_id != post.user_id %}
                         <span>•</span>
                         <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}"
                            class="report-link" title="Пожаловаться">
-                            ⚑
+                            <i class="fas fa-flag"></i>
                         </a>
+                        {% endif %}
                         {% endif %}
                     </div>
                     {% if post.post_type == 'text' %}
-                        <p class="post-text">{{ post.content[:200] }}{% if post.content|length > 200 %}...{% endif %}</p>
+                        <div class="post-text">{{ post.content[:200] }}{% if post.content|length > 200 %}...{% endif %}</div>
                     {% endif %}
                 </div>
             </div>
@@ -122,15 +135,409 @@
     </div>
 </div>
 
+<!-- Модальное окно подтверждения удаления сообщества -->
+<div id="deleteCommunityModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle" style="color: var(--danger-color);"></i> Удаление сообщества</h3>
+            <button class="close-btn" onclick="closeDeleteCommunityModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Вы уверены, что хотите удалить сообщество <strong>r/{{ community.name }}</strong>?</p>
+            <p style="color: var(--danger-color); margin-top: 10px;">
+                <i class="fas fa-exclamation-circle"></i>
+                Внимание: сообщество можно удалить только если в нем нет постов.
+            </p>
+            {% set posts_count = posts|length %}
+            {% if posts_count > 0 %}
+            <p style="color: var(--warning-color);">
+                <i class="fas fa-info-circle"></i>
+                В сообществе есть {{ posts_count }} постов. Сначала удалите их.
+            </p>
+            {% endif %}
+        </div>
+        <div class="modal-footer">
+            {% if posts_count == 0 %}
+            <form method="POST" action="{{ url_for('delete_own_community', community_name=community.name) }}" style="display: inline;">
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Да, удалить
+                </button>
+            </form>
+            {% endif %}
+            <button type="button" class="btn btn-outline" onclick="closeDeleteCommunityModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
 <style>
+.community-detail {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.community-header {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 30px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.community-info {
+    flex: 1;
+}
+
+.community-info h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-bottom: 4px;
+}
+
+.community-info h2 {
+    font-size: 18px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.community-description {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 16px;
+    font-size: 15px;
+}
+
+.community-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.meta-item strong {
+    color: var(--text-primary);
+}
+
+.meta-item.public {
+    color: var(--success-color);
+}
+
+.meta-item.private {
+    color: var(--warning-color);
+}
+
+.community-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.community-posts h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--text-primary);
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.post-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-light);
+    display: flex;
+    gap: 20px;
+    transition: var(--transition);
+}
+
+.post-card:hover {
+    border-color: var(--primary-light);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.vote {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 50px;
+}
+
+.vote-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 18px;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.vote-btn:hover {
+    background: var(--bg-hover);
+}
+
+.vote-btn.up.voted {
+    background: var(--success-color);
+    color: white;
+    border-color: var(--success-color);
+}
+
+.vote-btn.down.voted {
+    background: var(--danger-color);
+    color: white;
+    border-color: var(--danger-color);
+}
+
+.score {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.post-content {
+    flex: 1;
+}
+
+.post-content h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.post-content h3 a {
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.post-content h3 a:hover {
+    color: var(--primary-color);
+}
+
+.post-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.post-author {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.role-badge {
+    display: inline-block;
+    margin-left: 2px;
+    font-size: 14px;
+}
+
+.role-badge.admin {
+    color: #fbbf24;
+}
+
+.role-badge.moderator {
+    color: #60a5fa;
+}
+
+.vote-info i.fa-arrow-up {
+    color: var(--success-color);
+}
+
+.vote-info i.fa-arrow-down {
+    color: var(--danger-color);
+}
+
+.bookmark-link {
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.bookmark-link.active {
+    color: var(--accent-color);
+}
+
+.bookmark-link:hover {
+    color: var(--accent-color);
+}
+
 .report-link {
     color: var(--text-muted);
-    text-decoration: none;
     transition: var(--transition);
 }
 
 .report-link:hover {
     color: var(--danger-color);
 }
+
+.post-text {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-size: 14px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 30px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 2px dashed var(--border-color);
+}
+
+.empty-state p {
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    font-size: 16px;
+}
+
+/* Модальное окно */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    width: 90%;
+    max-width: 500px;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.close-btn:hover {
+    color: var(--danger-color);
+}
+
+.modal-body {
+    padding: 24px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.modal-footer {
+    padding: 20px 24px;
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .community-header {
+        flex-direction: column;
+    }
+
+    .community-actions {
+        width: 100%;
+    }
+
+    .community-actions .btn {
+        flex: 1;
+    }
+
+    .post-card {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .vote {
+        flex-direction: row;
+        width: 100%;
+    }
+
+    .post-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .modal-footer {
+        flex-direction: column;
+    }
+
+    .modal-footer .btn {
+        width: 100%;
+    }
+}
 </style>
+
+<script>
+function showDeleteCommunityModal() {
+    document.getElementById('deleteCommunityModal').style.display = 'flex';
+}
+
+function closeDeleteCommunityModal() {
+    document.getElementById('deleteCommunityModal').style.display = 'none';
+}
+
+// Закрытие по клику вне модального окна
+window.onclick = function(event) {
+    const modal = document.getElementById('deleteCommunityModal');
+    if (event.target == modal) {
+        closeDeleteCommunityModal();
+    }
+}
+</script>
 {% endblock %}

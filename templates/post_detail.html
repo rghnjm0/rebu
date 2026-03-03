@@ -68,12 +68,12 @@
                 </div>
                 {% endif %}
 
-                <!-- Кнопка редактирования для автора -->
+                <!-- Кнопка удаления для автора -->
                 {% if is_author and not post.is_deleted %}
                 <span class="separator">•</span>
-                <a href="#" class="edit-link" title="Редактировать (в разработке)">
-                    <i class="fas fa-edit"></i>
-                </a>
+                <button onclick="showDeletePostModal()" class="delete-own-link" title="Удалить пост">
+                    <i class="fas fa-trash"></i>
+                </button>
                 {% endif %}
             </div>
 
@@ -234,6 +234,31 @@
     </div>
 </div>
 
+<!-- Модальное окно подтверждения удаления поста -->
+<div id="deletePostModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-exclamation-triangle" style="color: var(--danger-color);"></i> Удаление поста</h3>
+            <button class="close-btn" onclick="closeDeletePostModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Вы уверены, что хотите удалить пост <strong>"{{ post.title }}"</strong>?</p>
+            <p style="color: var(--danger-color); margin-top: 10px;">
+                <i class="fas fa-exclamation-circle"></i>
+                Это действие нельзя отменить. Пост будет скрыт от всех пользователей.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <form method="POST" action="{{ url_for('delete_own_post', post_id=post.id) }}" style="display: inline;">
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Да, удалить
+                </button>
+            </form>
+            <button type="button" class="btn btn-outline" onclick="closeDeletePostModal()">Отмена</button>
+        </div>
+    </div>
+</div>
+
 <style>
 /* Основные стили */
 .post-detail {
@@ -360,6 +385,19 @@
     color: var(--danger-color);
 }
 
+.delete-own-link {
+    color: var(--text-muted);
+    transition: var(--transition);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.delete-own-link:hover {
+    color: var(--danger-color);
+}
+
 .moderation-actions {
     display: inline-flex;
     gap: 8px;
@@ -376,15 +414,6 @@
 
 .moderate-link.restore:hover {
     color: var(--success-color);
-}
-
-.edit-link {
-    color: var(--text-muted);
-    transition: var(--transition);
-}
-
-.edit-link:hover {
-    color: var(--primary-color);
 }
 
 .post-meta {
@@ -434,10 +463,6 @@
     color: var(--accent-color);
 }
 
-.bookmark-link i {
-    font-size: 14px;
-}
-
 .deleted-message {
     padding: 20px;
     background: rgba(239, 68, 68, 0.1);
@@ -448,25 +473,6 @@
     align-items: center;
     gap: 12px;
     margin: 20px 0;
-}
-
-.deleted-message i {
-    font-size: 20px;
-}
-
-.deleted-content {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.deleted-content strong {
-    color: var(--danger-color);
-}
-
-.deleted-content span {
-    font-size: 14px;
-    color: var(--text-secondary);
 }
 
 /* Markdown стили */
@@ -501,11 +507,6 @@
     padding-bottom: 0.3em;
 }
 
-.post-text.markdown-content h3 { font-size: 1.5em; }
-.post-text.markdown-content h4 { font-size: 1.25em; }
-.post-text.markdown-content h5 { font-size: 1.1em; }
-.post-text.markdown-content h6 { font-size: 1em; color: var(--text-muted); }
-
 .post-text.markdown-content p {
     margin: 1em 0;
 }
@@ -516,10 +517,6 @@
     padding-left: 2em;
 }
 
-.post-text.markdown-content li {
-    margin: 0.5em 0;
-}
-
 .post-text.markdown-content blockquote {
     margin: 1.5em 0;
     padding: 1em 1.5em;
@@ -527,16 +524,14 @@
     background: var(--bg-sidebar);
     border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     font-style: italic;
-    color: var(--text-secondary);
 }
 
 .post-text.markdown-content code {
     background: var(--bg-main);
     padding: 0.2em 0.4em;
     border-radius: 3px;
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Consolas', monospace;
+    font-family: monospace;
     font-size: 0.9em;
-    color: var(--danger-color);
 }
 
 .post-text.markdown-content pre {
@@ -548,52 +543,12 @@
     margin: 1.5em 0;
 }
 
-.post-text.markdown-content pre code {
-    background: none;
-    padding: 0;
-    color: inherit;
-    font-size: 14px;
-}
-
-.post-text.markdown-content a {
-    color: var(--primary-color);
-    text-decoration: none;
-}
-
-.post-text.markdown-content a:hover {
-    text-decoration: underline;
-}
-
 .post-text.markdown-content img {
     max-width: 100%;
     height: auto;
     border-radius: var(--radius-sm);
     margin: 1em 0;
     box-shadow: var(--shadow-sm);
-    display: block;
-}
-
-.post-text.markdown-content table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1.5em 0;
-}
-
-.post-text.markdown-content th,
-.post-text.markdown-content td {
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-}
-
-.post-text.markdown-content th {
-    background: var(--bg-sidebar);
-    font-weight: 600;
-}
-
-.post-text.markdown-content hr {
-    margin: 2em 0;
-    border: none;
-    border-top: 2px solid var(--border-color);
 }
 
 /* Комментарии */
@@ -622,10 +577,6 @@
     gap: 8px;
 }
 
-.comments-header h3 i {
-    color: var(--primary-color);
-}
-
 .comment-form {
     margin-bottom: 30px;
     background: var(--bg-sidebar);
@@ -643,7 +594,6 @@
     margin-bottom: 12px;
     background: var(--bg-main);
     resize: vertical;
-    transition: var(--transition);
 }
 
 .comment-form textarea:focus {
@@ -681,10 +631,6 @@
     font-weight: 600;
 }
 
-.login-prompt a:hover {
-    text-decoration: underline;
-}
-
 .comments {
     display: flex;
     flex-direction: column;
@@ -696,11 +642,6 @@
     background: var(--bg-sidebar);
     border-radius: var(--radius-sm);
     border-left: 3px solid var(--primary-color);
-    transition: var(--transition);
-}
-
-.comment:hover {
-    background: var(--bg-hover);
 }
 
 .comment-header {
@@ -758,16 +699,11 @@
     color: var(--success-color);
 }
 
-.edit-link-small:hover {
-    color: var(--primary-color);
-}
-
 .comment-text {
     font-size: 14px;
     line-height: 1.6;
     color: var(--text-secondary);
     white-space: pre-wrap;
-    word-wrap: break-word;
 }
 
 .comment-deleted {
@@ -779,11 +715,6 @@
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-.comment-deleted i {
-    color: var(--danger-color);
-    font-size: 14px;
 }
 
 .no-comments {
@@ -814,6 +745,72 @@
 .no-comments p {
     color: var(--text-muted);
     font-size: 14px;
+}
+
+/* Модальное окно */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    width: 90%;
+    max-width: 500px;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.close-btn:hover {
+    color: var(--danger-color);
+}
+
+.modal-body {
+    padding: 24px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.modal-footer {
+    padding: 20px 24px;
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
 }
 
 /* Адаптивность */
@@ -854,10 +851,6 @@
         align-items: flex-start;
     }
 
-    .comment-actions {
-        align-self: flex-end;
-    }
-
     .form-actions {
         flex-direction: column;
     }
@@ -866,27 +859,31 @@
         width: 100%;
     }
 
-    .post-text.markdown-content {
-        font-size: 15px;
+    .modal-footer {
+        flex-direction: column;
     }
 
-    .post-text.markdown-content h1 { font-size: 1.75em; }
-    .post-text.markdown-content h2 { font-size: 1.5em; }
-    .post-text.markdown-content h3 { font-size: 1.25em; }
-}
-
-@media (max-width: 480px) {
-    .post-detail, .comments-section {
-        padding: 16px;
-    }
-
-    .post-title {
-        font-size: 20px;
-    }
-
-    .post-text.markdown-content {
-        font-size: 14px;
+    .modal-footer .btn {
+        width: 100%;
     }
 }
 </style>
+
+<script>
+function showDeletePostModal() {
+    document.getElementById('deletePostModal').style.display = 'flex';
+}
+
+function closeDeletePostModal() {
+    document.getElementById('deletePostModal').style.display = 'none';
+}
+
+// Закрытие по клику вне модального окна
+window.onclick = function(event) {
+    const modal = document.getElementById('deletePostModal');
+    if (event.target == modal) {
+        closeDeletePostModal();
+    }
+}
+</script>
 {% endblock %}

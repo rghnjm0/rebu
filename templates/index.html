@@ -1,4 +1,3 @@
-<!-- templates/index.html -->
 {% extends "base.html" %}
 
 {% block content %}
@@ -23,43 +22,26 @@
         </div>
     </div>
 
-    {% if not session.user_id %}
-    <div class="welcome-message">
-        <p><strong>Присоединяйтесь к сообществу!</strong> Создавайте посты, обсуждайте интересные темы и находите единомышленников.</p>
-        <div class="welcome-buttons">
-            <a href="{{ url_for('register') }}" class="btn btn-primary btn-small">
-                <i class="fas fa-user-plus"></i> Регистрация
-            </a>
-            <a href="{{ url_for('login') }}" class="btn btn-outline btn-small">
-                <i class="fas fa-sign-in-alt"></i> Войти
-            </a>
-        </div>
-    </div>
-    {% endif %}
-
     {% if posts %}
         {% for post in posts %}
         <div class="post-card">
             <div class="post-header">
-                {% if post.community_name %}
-                <a href="{{ url_for('community_detail', community_name=post.community_name) }}"
-                   class="post-community">
-                    <i class="fas fa-hashtag"></i> r/{{ post.community_name }}
-                </a>
-                {% endif %}
+                <div class="post-header-left">
+                    {% if post.community_name %}
+                    <a href="{{ url_for('community_detail', community_name=post.community_name) }}" class="community-badge">
+                        r/{{ post.community_name }}
+                    </a>
+                    {% endif %}
 
-                <div class="post-meta-info">
-                    <span class="post-author">
-                        {{ post.username }}
+                    <div class="post-meta">
+                        <span class="post-author">{{ post.username }}</span>
                         {% if post.author_role == 'admin' %}
                         <span class="role-badge admin" title="Администратор">👑</span>
                         {% elif post.author_role == 'moderator' %}
                         <span class="role-badge moderator" title="Модератор">🛡️</span>
                         {% endif %}
-                    </span>
-                    <span class="post-date">
-                        {{ post.created_at }}
-                    </span>
+                        <span class="post-date">{{ post.created_at[:16] }}</span>
+                    </div>
                 </div>
             </div>
 
@@ -74,13 +56,13 @@
             {% endif %}
 
             <div class="post-stats">
-                <div class="stat-badge vote-stat">
-                    <i class="fas fa-arrow-up"></i>
-                    <span>{{ post.upvotes - post.downvotes }} голосов</span>
+                <div class="stat-item">
+                    <i class="fas fa-arrow-up" style="color: var(--success-color);"></i>
+                    <span>{{ post.upvotes - post.downvotes }}</span>
                 </div>
-                <div class="stat-badge comment-stat">
-                    <i class="fas fa-comment"></i>
-                    <span>{{ post.comments_count }} комментариев</span>
+                <div class="stat-item">
+                    <i class="fas fa-comment" style="color: var(--info-color);"></i>
+                    <span>{{ post.comments_count }}</span>
                 </div>
             </div>
 
@@ -88,13 +70,13 @@
                 <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
                    class="action-btn vote-up {% if post.id in user_votes and user_votes[post.id] == 'up' %}active{% endif %}">
                     <i class="fas fa-arrow-up"></i>
-                    <span class="vote-count">{{ post.upvotes }}</span>
+                    <span>{{ post.upvotes }}</span>
                 </a>
 
                 <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
                    class="action-btn vote-down {% if post.id in user_votes and user_votes[post.id] == 'down' %}active{% endif %}">
                     <i class="fas fa-arrow-down"></i>
-                    <span class="vote-count">{{ post.downvotes }}</span>
+                    <span>{{ post.downvotes }}</span>
                 </a>
 
                 <a href="{{ url_for('post_detail', post_id=post.id) }}"
@@ -110,7 +92,6 @@
                     <span>Закладка</span>
                 </a>
 
-                <!-- Кнопка жалобы для всех пользователей (кроме автора) -->
                 {% if session.user_id != post.user_id %}
                 <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}"
                    class="action-btn report-btn" title="Пожаловаться">
@@ -151,7 +132,8 @@
 <style>
 /* Основные стили */
 .posts-feed {
-    margin-top: 16px;
+    max-width: 900px;
+    margin: 0 auto;
 }
 
 .feed-header {
@@ -199,30 +181,6 @@
     box-shadow: var(--shadow-sm);
 }
 
-.welcome-message {
-    background: linear-gradient(135deg, var(--bg-sidebar), var(--bg-card));
-    border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 24px;
-    border-left: 4px solid var(--primary-color);
-}
-
-.welcome-message p {
-    color: var(--text-secondary);
-    font-size: 15px;
-    margin-bottom: 16px;
-    line-height: 1.5;
-}
-
-.welcome-message p strong {
-    color: var(--text-primary);
-}
-
-.welcome-buttons {
-    display: flex;
-    gap: 12px;
-}
-
 /* Карточка поста */
 .post-card {
     background-color: var(--bg-card);
@@ -240,36 +198,45 @@
 }
 
 .post-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-    gap: 8px;
+    margin-bottom: 8px;
 }
 
-.post-community {
-    background: var(--primary-gradient);
+.post-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* Плашка сообщества - как на скриншоте */
+.community-badge {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
     color: white;
     padding: 4px 12px;
-    border-radius: var(--radius-full);
-    font-size: 12px;
+    border-radius: 20px;
+    font-size: 13px;
     font-weight: 600;
     text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    display: inline-block;
     transition: var(--transition);
+    border: none;
+    box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
 }
 
-.post-community:hover {
-    opacity: 0.9;
+.community-badge:hover {
     transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
 }
 
-.post-meta-info {
+.community-badge a {
+    color: white;
+    text-decoration: none;
+}
+
+.post-meta {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     color: var(--text-muted);
     font-size: 13px;
 }
@@ -277,14 +244,10 @@
 .post-author {
     color: var(--text-secondary);
     font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 4px;
 }
 
 .role-badge {
     display: inline-block;
-    margin-left: 2px;
     font-size: 14px;
 }
 
@@ -303,10 +266,10 @@
 }
 
 .post-title {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700;
     line-height: 1.4;
-    margin-bottom: 12px;
+    margin: 12px 0 12px 0;
     color: var(--text-primary);
 }
 
@@ -341,40 +304,34 @@
 }
 
 .post-stats {
-    background: var(--bg-sidebar);
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-    margin: 16px 0;
     display: flex;
     gap: 20px;
-    font-size: 13px;
+    margin: 16px 0;
+    padding: 8px 0;
+    border-top: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
 }
 
-.stat-badge {
+.stat-item {
     display: flex;
     align-items: center;
     gap: 6px;
     color: var(--text-secondary);
+    font-size: 14px;
 }
 
-.stat-badge i {
-    font-size: 12px;
+.stat-item i {
+    font-size: 14px;
 }
 
-.vote-stat {
-    color: var(--success-color);
-}
-
-.comment-stat {
-    color: var(--info-color);
+.stat-item span {
+    font-weight: 500;
 }
 
 /* Кнопки действий */
 .post-actions {
     display: flex;
     gap: 8px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border-light);
     flex-wrap: wrap;
 }
 
@@ -382,9 +339,9 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 12px;
+    padding: 8px 16px;
     background: var(--bg-sidebar);
-    border: 1px solid transparent;
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     color: var(--text-secondary);
     font-size: 13px;
@@ -397,13 +354,14 @@
 .action-btn:hover {
     background: var(--bg-hover);
     color: var(--primary-color);
+    border-color: var(--primary-light);
     transform: translateY(-1px);
 }
 
 .action-btn.active {
     background: rgba(99, 102, 241, 0.1);
     color: var(--primary-color);
-    border-color: var(--primary-light);
+    border-color: var(--primary-color);
 }
 
 .action-btn.vote-up.active {
@@ -426,13 +384,7 @@
 
 .action-btn.report-btn:hover {
     color: var(--danger-color);
-}
-
-.vote-count {
-    font-weight: 600;
-    min-width: 20px;
-    text-align: center;
-    font-size: 13px;
+    border-color: var(--danger-color);
 }
 
 /* Пустое состояние */
@@ -490,45 +442,46 @@
 
     .feed-tabs {
         width: 100%;
-        justify-content: stretch;
     }
 
     .feed-tab {
         flex: 1;
         justify-content: center;
+        padding: 8px 12px;
     }
 
     .post-card {
         padding: 16px;
     }
 
-    .post-header {
+    .post-header-left {
         flex-direction: column;
         align-items: flex-start;
+        gap: 8px;
     }
 
-    .post-meta-info {
+    .post-meta {
         width: 100%;
         justify-content: space-between;
     }
 
     .post-title {
-        font-size: 16px;
+        font-size: 18px;
+        margin-top: 8px;
     }
 
     .post-stats {
-        flex-direction: column;
-        gap: 8px;
+        justify-content: space-around;
     }
 
     .post-actions {
-        justify-content: space-between;
+        justify-content: center;
     }
 
     .action-btn {
         flex: 1;
         justify-content: center;
-        padding: 8px;
+        padding: 8px 12px;
     }
 
     .action-btn span {
@@ -547,21 +500,9 @@
     .empty-state-actions .btn {
         width: 100%;
     }
-
-    .welcome-buttons {
-        flex-direction: column;
-    }
-
-    .welcome-buttons .btn {
-        width: 100%;
-    }
 }
 
 @media (max-width: 480px) {
-    .feed-header h1 {
-        font-size: 20px;
-    }
-
     .post-actions {
         flex-wrap: wrap;
     }
@@ -590,7 +531,7 @@
     }
 }
 
-.post-card:hover .post-community {
+.post-card:hover .community-badge {
     animation: pulse 1s ease infinite;
 }
 
@@ -617,34 +558,27 @@
     z-index: 1000;
 }
 
-/* Статусные индикаторы */
-.post-card .post-author .role-badge {
+/* Стили для ролей */
+.post-author .role-badge {
     transition: var(--transition);
 }
 
 .post-card:hover .post-author .role-badge {
     transform: scale(1.1);
 }
-
-/* Стили для разных ролей в посте */
-.post-author .role-badge.admin {
-    text-shadow: 0 0 5px rgba(251, 191, 36, 0.5);
-}
-
-.post-author .role-badge.moderator {
-    text-shadow: 0 0 5px rgba(96, 165, 250, 0.5);
-}
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Форматирование больших чисел
-    document.querySelectorAll('.vote-count').forEach(el => {
+    document.querySelectorAll('.stat-item span, .vote-count').forEach(el => {
         const value = parseInt(el.textContent);
-        if (value > 1000) {
-            el.textContent = (value / 1000).toFixed(1) + 'k';
-        } else if (value > 1000000) {
-            el.textContent = (value / 1000000).toFixed(1) + 'M';
+        if (!isNaN(value)) {
+            if (value > 1000) {
+                el.textContent = (value / 1000).toFixed(1) + 'k';
+            } else if (value > 1000000) {
+                el.textContent = (value / 1000000).toFixed(1) + 'M';
+            }
         }
     });
 
@@ -665,15 +599,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Добавляем класс для анимации при наведении
-    const postCards = document.querySelectorAll('.post-card');
-    postCards.forEach(card => {
-        card.addEventListener('mouseenter', function() {
-            this.style.transition = 'var(--transition)';
-        });
-    });
-
-    // Подтверждение для важных действий
+    // Подтверждение для жалоб
     const reportButtons = document.querySelectorAll('.action-btn.report-btn');
     reportButtons.forEach(btn => {
         btn.addEventListener('click', function(e) {
@@ -683,46 +609,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Автоматическое обновление счетчиков (для демонстрации)
-    let voteButtons = document.querySelectorAll('.action-btn.vote-up, .action-btn.vote-down');
-    voteButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            // Здесь можно добавить анимацию загрузки
-            this.style.opacity = '0.7';
-            setTimeout(() => {
-                this.style.opacity = '1';
-            }, 200);
-        });
-    });
-
-    // Сохранение позиции скролла при возврате
+    // Сохранение позиции скролла
     let scrollPosition = sessionStorage.getItem('scrollPosition');
     if (scrollPosition) {
         window.scrollTo(0, parseInt(scrollPosition));
         sessionStorage.removeItem('scrollPosition');
     }
 
-    // Сохраняем позицию скролла перед уходом со страницы
     window.addEventListener('beforeunload', function() {
         sessionStorage.setItem('scrollPosition', window.scrollY);
     });
 
-    // Ленивая загрузка для длинных списков (если понадобится)
-    if ('IntersectionObserver' in window) {
-        const lazyPosts = document.querySelectorAll('.post-card.lazy');
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                    observer.unobserve(entry.target);
-                }
-            });
-        });
-
-        lazyPosts.forEach(post => observer.observe(post));
-    }
-
-    // Добавляем информацию о времени публикации
+    // Форматирование даты
     document.querySelectorAll('.post-date').forEach(el => {
         const dateStr = el.textContent.trim();
         const postDate = new Date(dateStr);
