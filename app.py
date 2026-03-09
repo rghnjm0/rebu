@@ -1,5 +1,4 @@
-# file_path: app.py
-from flask import Flask, render_template, redirect, url_for, flash, request, session, g
+from flask import Flask, render_template, redirect, url_for, flash, request, session, g, jsonify
 import sqlite3
 import hashlib
 from datetime import datetime
@@ -7,17 +6,23 @@ import os
 import re
 from functools import wraps
 from werkzeug.utils import secure_filename
+import json
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
 app.config['DATABASE'] = 'instance/app.db'
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = 'static/uploads/posts'  # папка для медиа постов
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 МБ максимум
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
-# Создаем папку для загрузок, если её нет
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+# Создаём папку для загрузок, если её нет
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+
+def allowed_file(filename):
+    """Проверка допустимых расширений файлов"""
+    return '.' in filename and \
+        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 # ========== ДЕКОРАТОРЫ ДЛЯ ПРОВЕРКИ ПРАВ ==========
@@ -192,11 +197,6 @@ def log_moderation_action(moderator_id, action, target_type, target_id=None, det
         VALUES (?, ?, ?, ?, ?)
     ''', (moderator_id, action, target_type, target_id, details))
     db.commit()
-
-
-def allowed_file(filename):
-    """Проверяет, разрешен ли тип файла"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def check_and_create_tables():
@@ -459,11 +459,8 @@ def index():
 
     check_and_create_tables()
 
-    # ВАЖНО: Включаем community_name в запрос
     cursor.execute('''
-        SELECT p.*, u.username, u.role as author_role, 
-               c.name as community_name,
-               c.display_name as community_display_name,
+        SELECT p.*, u.username, u.role as author_role, c.name as community_name, c.display_name as community_display_name,
                (p.upvotes - p.downvotes) as score
         FROM posts p
         JOIN users u ON p.user_id = u.id
@@ -502,11 +499,8 @@ def hot_posts():
     db = get_db()
     cursor = db.cursor()
 
-    # ВАЖНО: Включаем community_name в запрос
     cursor.execute('''
-        SELECT p.*, u.username, u.role as author_role, 
-               c.name as community_name,
-               c.display_name as community_display_name,
+        SELECT p.*, u.username, u.role as author_role, c.name as community_name, c.display_name as community_display_name,
                (p.upvotes - p.downvotes) as score
         FROM posts p
         JOIN users u ON p.user_id = u.id
@@ -696,7 +690,7 @@ def create_post():
                     file.save(filepath)
 
                     # Создаем Markdown тег для изображения
-                    image_url = url_for('static', filename=f'uploads/{filename}')
+                    image_url = url_for('static', filename=f'uploads/posts/{filename}')
                     image_tags.append(f'![{name}]({image_url})')
 
                     print(f"Image uploaded: {filename}")
@@ -706,17 +700,10 @@ def create_post():
             content += '\n\n' + '\n'.join(image_tags)
 
         try:
-            # ВАЖНО: Сохраняем community_id в пост
-            if community_id:
-                cursor.execute(
-                    'INSERT INTO posts (title, content, user_id, post_type, community_id, is_deleted) VALUES (?, ?, ?, ?, ?, 0)',
-                    (title, content, session['user_id'], post_type, community_id)
-                )
-            else:
-                cursor.execute(
-                    'INSERT INTO posts (title, content, user_id, post_type, is_deleted) VALUES (?, ?, ?, ?, 0)',
-                    (title, content, session['user_id'], post_type)
-                )
+            cursor.execute(
+                'INSERT INTO posts (title, content, user_id, post_type, community_id, is_deleted) VALUES (?, ?, ?, ?, ?, 0)',
+                (title, content, session['user_id'], post_type, community_id if community_id else None)
+            )
             post_id = cursor.lastrowid
             db.commit()
 
@@ -738,71 +725,40 @@ def create_post():
     return render_template('create_post.html', communities=user_communities)
 
 
-@app.route('/post/<int:post_id>')
-@not_banned
-def post_detail(post_id):
-    db = get_db()
-    cursor = db.cursor()
+@app.route('/upload_image', methods=['POST'])
+@login_required
+def upload_image():
+    """
+    Загрузка изображений для TinyMCE и форм постов.
+    Ожидаемый ответ: {"location": "https://.../static/uploads/posts/xxx.jpg"}
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'Файл не передан'}), 400
 
-    # ВАЖНО: Включаем community_name в запрос
-    cursor.execute(''' 
-        SELECT p.*, u.username, u.role as author_role, 
-               c.name as community_name, 
-               c.display_name as community_display_name,
-               (p.upvotes - p.downvotes) as score
-        FROM posts p
-        JOIN users u ON p.user_id = u.id
-        LEFT JOIN communities c ON p.community_id = c.id
-        WHERE p.id = ?
-    ''', (post_id,))
+    file = request.files['file']
 
-    post = cursor.fetchone()
+    if file.filename == '':
+        return jsonify({'error': 'Файл не выбран'}), 400
 
-    if not post:
-        flash('Пост не найден', 'danger')
-        return redirect(url_for('index'))
+    if file and allowed_file(file.filename):
+        # Делаем имя файла уникальным
+        original_name = secure_filename(file.filename)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{timestamp}_{original_name}"
 
-    cursor.execute('''
-        SELECT c.*, u.username, u.role as author_role
-        FROM comments c
-        JOIN users u ON c.user_id = u.id
-        WHERE c.post_id = ? AND c.is_deleted = 0
-        ORDER BY c.created_at ASC
-    ''', (post_id,))
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
 
-    comments = cursor.fetchall()
+        # Абсолютный URL (можно использовать _external=True для внешнего доступа)
+        file_url = url_for('static', filename=f'uploads/posts/{filename}', _external=True)
 
-    user_vote = None
-    can_moderate = False
-    is_author = False
+        return jsonify({
+            'location': file_url,
+            'filename': filename,
+            'size': os.path.getsize(filepath)
+        }), 200
 
-    if 'user_id' in session:
-        cursor.execute(
-            'SELECT vote_type FROM votes WHERE user_id = ? AND post_id = ?',
-            (session['user_id'], post_id)
-        )
-        vote = cursor.fetchone()
-        if vote:
-            user_vote = vote['vote_type']
-
-        can_moderate = can_moderate_post(session['user_id'], post_id)
-        is_author = post['user_id'] == session['user_id']
-
-    user_bookmarked = False
-    if 'user_id' in session:
-        cursor.execute(
-            'SELECT id FROM bookmarks WHERE user_id = ? AND post_id = ?',
-            (session['user_id'], post_id)
-        )
-        user_bookmarked = cursor.fetchone() is not None
-
-    return render_template('post_detail.html',
-                           post=post,
-                           comments=comments,
-                           user_vote=user_vote,
-                           user_bookmarked=user_bookmarked,
-                           can_moderate=can_moderate,
-                           is_author=is_author)
+    return jsonify({'error': 'Недопустимый формат файла. Поддерживаются: png, jpg, jpeg, gif, webp'}), 400
 
 
 @app.route('/vote/<int:post_id>/<string:vote_type>')
@@ -897,6 +853,121 @@ def add_comment(post_id):
     db.commit()
     flash('Комментарий добавлен', 'success')
     return redirect(url_for('post_detail', post_id=post_id))
+
+
+@app.route('/post/<int:post_id>')
+@not_banned
+def post_detail(post_id):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute(''' 
+        SELECT p.*, u.username, u.role as author_role, c.name as community_name, c.display_name as community_display_name,
+               (p.upvotes - p.downvotes) as score
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        LEFT JOIN communities c ON p.community_id = c.id
+        WHERE p.id = ?
+    ''', (post_id,))
+
+    post = cursor.fetchone()
+
+    if not post:
+        flash('Пост не найден', 'danger')
+        return redirect(url_for('index'))
+
+    cursor.execute('''
+        SELECT c.*, u.username, u.role as author_role
+        FROM comments c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.post_id = ? AND c.is_deleted = 0
+        ORDER BY c.created_at ASC
+    ''', (post_id,))
+
+    comments = cursor.fetchall()
+
+    user_vote = None
+    can_moderate = False
+    is_author = False
+
+    if 'user_id' in session:
+        cursor.execute(
+            'SELECT vote_type FROM votes WHERE user_id = ? AND post_id = ?',
+            (session['user_id'], post_id)
+        )
+        vote = cursor.fetchone()
+        if vote:
+            user_vote = vote['vote_type']
+
+        can_moderate = can_moderate_post(session['user_id'], post_id)
+        is_author = post['user_id'] == session['user_id']
+
+    user_bookmarked = False
+    if 'user_id' in session:
+        cursor.execute(
+            'SELECT id FROM bookmarks WHERE user_id = ? AND post_id = ?',
+            (session['user_id'], post_id)
+        )
+        user_bookmarked = cursor.fetchone() is not None
+
+    return render_template('post_detail.html',
+                           post=post,
+                           comments=comments,
+                           user_vote=user_vote,
+                           user_bookmarked=user_bookmarked,
+                           can_moderate=can_moderate,
+                           is_author=is_author)
+
+
+# ========== УДАЛЕНИЕ СВОИХ ПОСТОВ ==========
+
+@app.route('/post/<int:post_id>/delete', methods=['POST'])
+@login_required
+@not_banned
+def delete_own_post(post_id):
+    """Удаление своего поста владельцем"""
+    db = get_db()
+    cursor = db.cursor()
+
+    # Проверяем, существует ли пост и принадлежит ли он пользователю
+    cursor.execute('''
+        SELECT p.*, u.username 
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.id = ? AND p.is_deleted = 0
+    ''', (post_id,))
+
+    post = cursor.fetchone()
+
+    if not post:
+        flash('Пост не найден', 'danger')
+        return redirect(url_for('index'))
+
+    # Проверяем права на удаление (владелец поста или админ)
+    if post['user_id'] != session['user_id'] and not is_admin(session['user_id']):
+        flash('У вас нет прав на удаление этого поста', 'danger')
+        return redirect(url_for('post_detail', post_id=post_id))
+
+    # Помечаем пост как удаленный
+    cursor.execute('''
+        UPDATE posts 
+        SET is_deleted = 1, deleted_by = ?, deleted_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    ''', (session['user_id'], post_id))
+
+    # Логируем действие
+    log_moderation_action(
+        session['user_id'],
+        'delete_own_post',
+        'post',
+        post_id,
+        f'Deleted own post: {post["title"][:50]}'
+    )
+
+    db.commit()
+
+    flash('Ваш пост успешно удален', 'success')
+    return redirect(url_for('index'))
 
 
 # ========== СООБЩЕСТВА ==========
@@ -1131,6 +1202,64 @@ def my_communities():
     return render_template('my_communities.html', communities=communities)
 
 
+# ========== УДАЛЕНИЕ СООБЩЕСТВ ==========
+
+@app.route('/community/<string:community_name>/delete', methods=['POST'])
+@login_required
+@not_banned
+def delete_own_community(community_name):
+    """Удаление своего сообщества владельцем"""
+    db = get_db()
+    cursor = db.cursor()
+
+    # Проверяем, существует ли сообщество и принадлежит ли оно пользователю
+    cursor.execute('''
+        SELECT c.*, u.username 
+        FROM communities c
+        JOIN users u ON c.owner_id = u.id
+        WHERE c.name = ?
+    ''', (community_name,))
+
+    community = cursor.fetchone()
+
+    if not community:
+        flash('Сообщество не найдено', 'danger')
+        return redirect(url_for('communities_list'))
+
+    # Проверяем права на удаление (владелец сообщества или админ)
+    if community['owner_id'] != session['user_id'] and not is_admin(session['user_id']):
+        flash('У вас нет прав на удаление этого сообщества', 'danger')
+        return redirect(url_for('community_detail', community_name=community_name))
+
+    # Проверяем, есть ли посты в сообществе
+    cursor.execute('SELECT COUNT(*) as count FROM posts WHERE community_id = ? AND is_deleted = 0', (community['id'],))
+    posts_count = cursor.fetchone()['count']
+
+    if posts_count > 0:
+        flash('Нельзя удалить сообщество, в котором есть посты. Сначала удалите все посты.', 'danger')
+        return redirect(url_for('community_detail', community_name=community_name))
+
+    # Удаляем подписки на сообщество
+    cursor.execute('DELETE FROM community_subscriptions WHERE community_id = ?', (community['id'],))
+
+    # Удаляем само сообщество
+    cursor.execute('DELETE FROM communities WHERE id = ?', (community['id'],))
+
+    # Логируем действие
+    log_moderation_action(
+        session['user_id'],
+        'delete_own_community',
+        'community',
+        community['id'],
+        f'Deleted own community: {community["name"]}'
+    )
+
+    db.commit()
+
+    flash(f'Сообщество r/{community_name} успешно удалено', 'success')
+    return redirect(url_for('communities_list'))
+
+
 # ========== ЗАКЛАДКИ ==========
 
 @app.route('/bookmarks')
@@ -1140,11 +1269,8 @@ def bookmarks():
     db = get_db()
     cursor = db.cursor()
 
-    # ВАЖНО: Включаем community_name в запрос
     cursor.execute('''
-        SELECT p.*, u.username, 
-               c.name as community_name, 
-               c.display_name as community_display_name,
+        SELECT p.*, u.username, c.name as community_name, c.display_name as community_display_name,
                (p.upvotes - p.downvotes) as score
         FROM posts p
         JOIN users u ON p.user_id = u.id
@@ -1227,11 +1353,8 @@ def search_posts():
 
     search_pattern = f'%{query}%'
 
-    # ВАЖНО: Включаем community_name в запрос
     cursor.execute('''
-        SELECT p.*, u.username, u.role as author_role, 
-               c.name as community_name, 
-               c.display_name as community_display_name,
+        SELECT p.*, u.username, u.role as author_role, c.name as community_name, c.display_name as community_display_name,
                (p.upvotes - p.downvotes) as score
         FROM posts p
         JOIN users u ON p.user_id = u.id
@@ -1847,10 +1970,9 @@ def debug_database():
     result.append(f"Total posts in database: {post_count}")
 
     cursor.execute('''
-        SELECT p.id, p.title, p.user_id, u.username, p.created_at, p.is_deleted, c.name as community_name
+        SELECT p.id, p.title, p.user_id, u.username, p.created_at, p.is_deleted
         FROM posts p 
         LEFT JOIN users u ON p.user_id = u.id 
-        LEFT JOIN communities c ON p.community_id = c.id
         ORDER BY p.created_at DESC
         LIMIT 10
     ''')
@@ -1858,9 +1980,8 @@ def debug_database():
     result.append("\nRecent posts:")
     for post in posts:
         deleted = " [DELETED]" if post[5] else ""
-        community = f" [r/{post[6]}]" if post[6] else " [No community]"
         result.append(
-            f"ID: {post[0]}, Title: '{post[1]}', User: {post[3]}, Community: {community}, Deleted: {post[5]}, Created: {post[4]}{deleted}")
+            f"ID: {post[0]}, Title: '{post[1]}', User: {post[3]}, Deleted: {post[5]}, Created: {post[4]}{deleted}")
 
     cursor.execute("SELECT id, username, role, is_banned FROM users")
     users = cursor.fetchall()
@@ -1889,112 +2010,6 @@ def debug_check():
     except Exception as e:
         return f"Database connection ERROR: {str(e)}"
 
-
-# ========== УДАЛЕНИЕ ПОСТОВ И СООБЩЕСТВ ==========
-
-@app.route('/post/<int:post_id>/delete', methods=['POST'])
-@login_required
-@not_banned
-def delete_own_post(post_id):
-    """Удаление своего поста владельцем"""
-    db = get_db()
-    cursor = db.cursor()
-
-    # Проверяем, существует ли пост и принадлежит ли он пользователю
-    cursor.execute('''
-        SELECT p.*, u.username 
-        FROM posts p
-        JOIN users u ON p.user_id = u.id
-        WHERE p.id = ? AND p.is_deleted = 0
-    ''', (post_id,))
-
-    post = cursor.fetchone()
-
-    if not post:
-        flash('Пост не найден', 'danger')
-        return redirect(url_for('index'))
-
-    # Проверяем права на удаление (владелец поста или админ)
-    if post['user_id'] != session['user_id'] and not is_admin(session['user_id']):
-        flash('У вас нет прав на удаление этого поста', 'danger')
-        return redirect(url_for('post_detail', post_id=post_id))
-
-    # Помечаем пост как удаленный
-    cursor.execute('''
-        UPDATE posts 
-        SET is_deleted = 1, deleted_by = ?, deleted_at = CURRENT_TIMESTAMP 
-        WHERE id = ?
-    ''', (session['user_id'], post_id))
-
-    # Логируем действие
-    log_moderation_action(
-        session['user_id'],
-        'delete_own_post',
-        'post',
-        post_id,
-        f'Deleted own post: {post["title"][:50]}'
-    )
-
-    db.commit()
-
-    flash('Ваш пост успешно удален', 'success')
-    return redirect(url_for('index'))
-
-
-@app.route('/community/<string:community_name>/delete', methods=['POST'])
-@login_required
-@not_banned
-def delete_own_community(community_name):
-    """Удаление своего сообщества владельцем"""
-    db = get_db()
-    cursor = db.cursor()
-
-    # Проверяем, существует ли сообщество и принадлежит ли оно пользователю
-    cursor.execute('''
-        SELECT c.*, u.username 
-        FROM communities c
-        JOIN users u ON c.owner_id = u.id
-        WHERE c.name = ?
-    ''', (community_name,))
-
-    community = cursor.fetchone()
-
-    if not community:
-        flash('Сообщество не найдено', 'danger')
-        return redirect(url_for('communities_list'))
-
-    # Проверяем права на удаление (владелец сообщества или админ)
-    if community['owner_id'] != session['user_id'] and not is_admin(session['user_id']):
-        flash('У вас нет прав на удаление этого сообщества', 'danger')
-        return redirect(url_for('community_detail', community_name=community_name))
-
-    # Проверяем, есть ли посты в сообществе
-    cursor.execute('SELECT COUNT(*) as count FROM posts WHERE community_id = ? AND is_deleted = 0', (community['id'],))
-    posts_count = cursor.fetchone()['count']
-
-    if posts_count > 0:
-        flash('Нельзя удалить сообщество, в котором есть посты. Сначала удалите все посты.', 'danger')
-        return redirect(url_for('community_detail', community_name=community_name))
-
-    # Удаляем подписки на сообщество
-    cursor.execute('DELETE FROM community_subscriptions WHERE community_id = ?', (community['id'],))
-
-    # Удаляем само сообщество
-    cursor.execute('DELETE FROM communities WHERE id = ?', (community['id'],))
-
-    # Логируем действие
-    log_moderation_action(
-        session['user_id'],
-        'delete_own_community',
-        'community',
-        community['id'],
-        f'Deleted own community: {community["name"]}'
-    )
-
-    db.commit()
-
-    flash(f'Сообщество r/{community_name} успешно удалено', 'success')
-    return redirect(url_for('communities_list'))
 
 @app.route('/faq')
 @not_banned

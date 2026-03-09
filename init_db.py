@@ -523,6 +523,35 @@ def show_database_status():
     conn.close()
 
 
+# Добавьте после создания таблиц в init_db.py
+
+def create_indexes():
+    """Создает индексы для ускорения запросов"""
+    conn = sqlite3.connect('instance/app.db')
+    cursor = conn.cursor()
+
+    print("Creating indexes...")
+
+    # Индексы для таблицы posts
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_community ON posts(community_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_deleted ON posts(is_deleted)')
+
+    # Индексы для таблицы votes
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_votes_user ON votes(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_votes_post ON votes(post_id)')
+
+    # Индексы для таблицы bookmarks
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id)')
+
+    # Индексы для таблицы comments
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)')
+
+    conn.commit()
+    conn.close()
+    print("Indexes created successfully!")
+
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         if sys.argv[1] == 'reset':
