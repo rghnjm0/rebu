@@ -152,6 +152,23 @@ def init_database():
     )
     ''')
 
+    # Таблица пользователей с ролью
+    print("Creating users table...")
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        display_name TEXT,  -- добавлено это поле
+        role TEXT DEFAULT 'user',
+        is_banned BOOLEAN DEFAULT 0,
+        ban_reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        karma INTEGER DEFAULT 0
+    )
+    ''')
+
     # Таблица банов пользователей
     print("Creating user_bans table...")
     cursor.execute('''
@@ -167,6 +184,53 @@ def init_database():
         FOREIGN KEY (banned_by) REFERENCES users (id)
     )
     ''')
+
+    # Добавьте в функцию init_database() и update_database()
+
+    # Таблица тегов
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
+    # Таблица связей постов с тегами
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS post_tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        post_id INTEGER NOT NULL,
+        tag_id INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(post_id, tag_id),
+        FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE
+    )
+    ''')
+
+    # Индексы для ускорения поиска
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_tags_post ON post_tags(post_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_tags_tag ON post_tags(tag_id)')
+
+    # Таблица реакций на посты
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS post_reactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        post_id INTEGER NOT NULL,
+        reaction_type TEXT NOT NULL,  -- 'like', 'love', 'laugh', 'sad', 'angry', 'fire', etc.
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, post_id),
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE
+    )
+    ''')
+
+    # Индексы
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_reactions_post ON post_reactions(post_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_reactions_user ON post_reactions(user_id)')
 
     # Таблица логов действий
     print("Creating moderation_logs table...")
@@ -365,6 +429,13 @@ def update_database():
             print("Added column deleted_at to comments table")
         except sqlite3.OperationalError:
             print("Column deleted_at already exists in comments")
+
+        # Добавляем поле display_name в users, если его нет
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+            print("Added column display_name to users table")
+        except sqlite3.OperationalError:
+            print("Column display_name already exists in users")
 
         # Создаем таблицу user_bans
         cursor.execute('''

@@ -52,11 +52,34 @@
                 <a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a>
             </h3>
 
-            {% if post.post_type == 'text' and post.content %}
-            <div class="post-content">
-                {{ post.content | striptags | truncate(300, True, '...') }}
+            <!-- УЛУЧШЕННЫЙ БЛОК С ПРЕВЬЮ ИЗОБРАЖЕНИЙ И ТЕКСТА -->
+            <div class="post-preview">
+                {% if post.content %}
+                    {% set first_image = post.content|extract_first_image %}
+                    {% set images_count = post.content|extract_images_count %}
+
+                    {% if first_image %}
+                    <div class="post-preview-with-image">
+                        <div class="post-preview-image">
+                            <img src="{{ first_image }}" alt="Preview" loading="lazy">
+                            {% if images_count > 1 %}
+                            <div class="image-count-badge">
+                                <i class="fas fa-images"></i>
+                                {{ images_count }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="post-preview-text">
+                            {{ post.content|striptags|truncate(200, True, '...') }}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="post-content">
+                        {{ post.content|striptags|truncate(300, True, '...') }}
+                    </div>
+                    {% endif %}
+                {% endif %}
             </div>
-            {% endif %}
 
             <div class="post-stats">
                 <div class="stat-badge vote-stat">
@@ -67,6 +90,12 @@
                     <i class="fas fa-comment"></i>
                     <span>{{ post.comments_count }} комментариев</span>
                 </div>
+                {% if post.content|extract_images_count > 1 %}
+                <div class="stat-badge image-stat">
+                    <i class="fas fa-images"></i>
+                    <span>{{ post.content|extract_images_count }} фото</span>
+                </div>
+                {% endif %}
             </div>
 
             <div class="post-actions">
@@ -184,30 +213,6 @@
     box-shadow: var(--shadow-sm);
 }
 
-.welcome-message {
-    background: linear-gradient(135deg, var(--bg-sidebar), var(--bg-card));
-    border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 24px;
-    border-left: 4px solid var(--primary-color);
-}
-
-.welcome-message p {
-    color: var(--text-secondary);
-    font-size: 15px;
-    margin-bottom: 16px;
-    line-height: 1.5;
-}
-
-.welcome-message p strong {
-    color: var(--text-primary);
-}
-
-.welcome-buttons {
-    display: flex;
-    gap: 12px;
-}
-
 /* Карточка поста */
 .post-card {
     background-color: var(--bg-card);
@@ -305,6 +310,107 @@
     color: var(--primary-color);
 }
 
+/* УЛУЧШЕННЫЕ СТИЛИ ДЛЯ ПРЕВЬЮ С ИЗОБРАЖЕНИЕМ */
+.post-preview {
+    margin-bottom: 16px;
+}
+
+.post-preview-with-image {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    background: var(--bg-main);
+    border-radius: var(--radius);
+    padding: 15px;
+    border: 1px solid var(--border-light);
+}
+
+.post-preview-image {
+    flex: 0 0 200px;
+    height: 150px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+    box-shadow: var(--shadow-md);
+}
+
+.post-preview-image::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(0,0,0,0.1), rgba(0,0,0,0));
+    pointer-events: none;
+    z-index: 1;
+}
+
+.image-count-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--primary-gradient);
+    color: white;
+    padding: 4px 8px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: var(--shadow-sm);
+}
+
+.image-count-badge i {
+    font-size: 10px;
+}
+
+.post-preview-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+}
+
+.post-preview-image:hover img {
+    transform: scale(1.1);
+}
+
+.post-preview-text {
+    flex: 1;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-size: 15px;
+    max-height: 150px;
+    overflow: hidden;
+    position: relative;
+}
+
+.post-preview-text::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(to top, var(--bg-main), transparent);
+}
+
+@media (max-width: 768px) {
+    .post-preview-with-image {
+        flex-direction: column;
+    }
+
+    .post-preview-image {
+        width: 100%;
+        flex: 0 0 auto;
+        height: 200px;
+    }
+}
+
+/* Старый стиль для текста без изображений */
 .post-content {
     color: var(--text-secondary);
     line-height: 1.6;
@@ -313,6 +419,7 @@
     max-height: 60px;
     overflow: hidden;
     position: relative;
+    padding: 0 5px;
 }
 
 .post-content::after {
@@ -333,6 +440,7 @@
     display: flex;
     gap: 20px;
     font-size: 13px;
+    flex-wrap: wrap;
 }
 
 .stat-badge {
@@ -352,6 +460,17 @@
 
 .comment-stat {
     color: var(--info-color);
+}
+
+.image-stat {
+    color: var(--accent-color) !important;
+    background: rgba(245, 158, 11, 0.1);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+}
+
+.image-stat i {
+    color: var(--accent-color);
 }
 
 /* Кнопки действий */
@@ -502,8 +621,9 @@
     }
 
     .post-stats {
-        flex-direction: column;
-        gap: 8px;
+        flex-direction: row;
+        gap: 12px;
+        justify-content: space-between;
     }
 
     .post-actions {
@@ -532,19 +652,20 @@
     .empty-state-actions .btn {
         width: 100%;
     }
-
-    .welcome-buttons {
-        flex-direction: column;
-    }
-
-    .welcome-buttons .btn {
-        width: 100%;
-    }
 }
 
 @media (max-width: 480px) {
     .feed-header h1 {
         font-size: 20px;
+    }
+
+    .post-stats {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .stat-badge {
+        font-size: 12px;
     }
 
     .post-actions {
@@ -559,6 +680,10 @@
     .action-btn span {
         display: inline;
         font-size: 12px;
+    }
+
+    .post-preview-image {
+        height: 150px;
     }
 }
 
@@ -601,24 +726,6 @@
     pointer-events: none;
     z-index: 1000;
 }
-
-/* Статусные индикаторы */
-.post-card .post-author .role-badge {
-    transition: var(--transition);
-}
-
-.post-card:hover .post-author .role-badge {
-    transform: scale(1.1);
-}
-
-/* Стили для разных ролей в посте */
-.post-author .role-badge.admin {
-    text-shadow: 0 0 5px rgba(251, 191, 36, 0.5);
-}
-
-.post-author .role-badge.moderator {
-    text-shadow: 0 0 5px rgba(96, 165, 250, 0.5);
-}
 </style>
 
 <script>
@@ -633,31 +740,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Плавный скролл для якорных ссылок
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function(e) {
-            const href = this.getAttribute('href');
-            if (href !== '#') {
-                e.preventDefault();
-                const target = document.querySelector(href);
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-            }
-        });
-    });
-
-    // Добавляем класс для анимации при наведении
-    const postCards = document.querySelectorAll('.post-card');
-    postCards.forEach(card => {
-        card.addEventListener('mouseenter', function() {
-            this.style.transition = 'var(--transition)';
-        });
-    });
-
     // Подтверждение для важных действий
     const reportButtons = document.querySelectorAll('.action-btn.report-btn');
     reportButtons.forEach(btn => {
@@ -665,18 +747,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!confirm('Вы уверены, что хотите пожаловаться на этот пост?')) {
                 e.preventDefault();
             }
-        });
-    });
-
-    // Автоматическое обновление счетчиков (для демонстрации)
-    let voteButtons = document.querySelectorAll('.action-btn.vote-up, .action-btn.vote-down');
-    voteButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            // Здесь можно добавить анимацию загрузки
-            this.style.opacity = '0.7';
-            setTimeout(() => {
-                this.style.opacity = '1';
-            }, 200);
         });
     });
 
@@ -692,47 +762,56 @@ document.addEventListener('DOMContentLoaded', function() {
         sessionStorage.setItem('scrollPosition', window.scrollY);
     });
 
-    // Ленивая загрузка для длинных списков (если понадобится)
+    // Добавляем информацию о времени публикации
+    document.querySelectorAll('.post-date').forEach(el => {
+        const dateStr = el.textContent.trim();
+        try {
+            const postDate = new Date(dateStr);
+            if (!isNaN(postDate.getTime())) {
+                const now = new Date();
+                const diffMs = now - postDate;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
+
+                let timeAgo = '';
+                if (diffMins < 60) {
+                    timeAgo = `${diffMins} мин. назад`;
+                } else if (diffHours < 24) {
+                    timeAgo = `${diffHours} ч. назад`;
+                } else if (diffDays < 7) {
+                    timeAgo = `${diffDays} дн. назад`;
+                } else {
+                    timeAgo = dateStr.slice(0, 10);
+                }
+
+                el.setAttribute('title', dateStr);
+                if (timeAgo !== dateStr) {
+                    el.textContent = timeAgo;
+                }
+            }
+        } catch (e) {
+            // Игнорируем ошибки парсинга
+        }
+    });
+
+    // Ленивая загрузка изображений на главной
+    const lazyImages = document.querySelectorAll('.post-preview-image img');
     if ('IntersectionObserver' in window) {
-        const lazyPosts = document.querySelectorAll('.post-card.lazy');
-        const observer = new IntersectionObserver((entries) => {
+        const imageObserver = new IntersectionObserver((entries, observer) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                    observer.unobserve(entry.target);
+                    const img = entry.target;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                    }
+                    imageObserver.unobserve(img);
                 }
             });
         });
 
-        lazyPosts.forEach(post => observer.observe(post));
+        lazyImages.forEach(img => imageObserver.observe(img));
     }
-
-    // Добавляем информацию о времени публикации
-    document.querySelectorAll('.post-date').forEach(el => {
-        const dateStr = el.textContent.trim();
-        const postDate = new Date(dateStr);
-        const now = new Date();
-        const diffMs = now - postDate;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-
-        let timeAgo = '';
-        if (diffMins < 60) {
-            timeAgo = `${diffMins} мин. назад`;
-        } else if (diffHours < 24) {
-            timeAgo = `${diffHours} ч. назад`;
-        } else if (diffDays < 7) {
-            timeAgo = `${diffDays} дн. назад`;
-        } else {
-            timeAgo = dateStr;
-        }
-
-        el.setAttribute('title', dateStr);
-        if (timeAgo !== dateStr) {
-            el.textContent = timeAgo;
-        }
-    });
 });
 </script>
 {% endblock %}

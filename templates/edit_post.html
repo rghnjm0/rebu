@@ -10,7 +10,7 @@
         <p class="subtitle">Измените содержимое поста</p>
     </div>
 
-    <div class="create-post-card">
+    <div class="edit-post-card">
         <form method="POST" action="{{ url_for('edit_post', post_id=post.id) }}" enctype="multipart/form-data" id="post-form">
             <div class="form-section">
                 <div class="form-group">
@@ -38,52 +38,64 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="postContent">
+                    <label for="content">
                         <i class="fas fa-align-left"></i>
                         Содержание: <span class="required">*</span>
                     </label>
-                    <textarea id="postContent" name="content" required>
-{{ post.content | safe }}
-                    </textarea>
+                    <textarea id="content" name="content" rows="12" class="form-control" required>{{ post.content }}</textarea>
+                    <small class="form-text">Поддерживаются Markdown и хэштеги (#тег)</small>
                 </div>
 
-                <!-- Существующие изображения (если нужно показывать/удалять — можно расширить позже) -->
-                {% if post.images %}
+                <!-- Блок с текущими тегами -->
+                {% if post_tags %}
                 <div class="form-group">
-                    <label>Текущие изображения:</label>
-                    <div class="image-preview existing">
-                        {% for img in post.images %}
-                        <div class="preview-item">
-                            <img src="{{ url_for('static', filename=img) }}" alt="Изображение поста">
-                            <!-- Если хочешь удаление — добавь чекбокс -->
-                            <!-- <label><input type="checkbox" name="delete_images" value="{{ img }}"> Удалить</label> -->
-                        </div>
+                    <label><i class="fas fa-tags"></i> Текущие теги:</label>
+                    <div class="tags-container">
+                        {% for tag in post_tags %}
+                        <span class="tag-badge">#{{ tag.name }}</span>
                         {% endfor %}
                     </div>
                 </div>
                 {% endif %}
 
-                <!-- Новые изображения -->
+                <!-- Существующие изображения -->
+                {% if existing_images %}
+                <div class="form-group">
+                    <label>Текущие изображения в посте:</label>
+                    <div class="existing-images-grid">
+                        {% for img in existing_images %}
+                        <div class="existing-image-item">
+                            <img src="{{ img.url }}" alt="Изображение">
+                            <div class="image-filename">{{ img.filename }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <small class="form-text">Изображения сохраняются автоматически.</small>
+                </div>
+                {% endif %}
+
+                <!-- Загрузка новых изображений -->
                 <div class="form-group">
                     <label for="images">
                         <i class="fas fa-images"></i>
-                        Добавить/заменить изображения:
+                        Добавить новые изображения:
                     </label>
                     <div class="image-upload-area" id="drop-area">
-                        <input type="file" id="images" name="images" accept="image/*" multiple class="file-input">
+                        <input type="file" id="images" name="images"
+                               accept="image/*" multiple class="file-input">
                         <div class="upload-message">
                             <i class="fas fa-cloud-upload-alt"></i>
                             <p>Перетащите файлы сюда или кликните для выбора</p>
-                            <small>Поддерживаются JPG, PNG, GIF (макс. 5 МБ)</small>
+                            <small>Поддерживаются JPG, PNG, GIF (макс. 5 МБ на файл)</small>
                         </div>
                     </div>
                     <div id="image-preview" class="image-preview"></div>
                 </div>
 
-                <!-- Предпросмотр -->
+                <!-- Предпросмотр загруженных изображений -->
                 <div class="preview-section">
-                    <h3><i class="fas fa-eye"></i> Предпросмотр</h3>
-                    <div id="preview" class="preview-content"></div>
+                    <h3><i class="fas fa-eye"></i> Предпросмотр загруженных изображений</h3>
+                    <div id="image-gallery-preview" class="image-gallery"></div>
                 </div>
             </div>
 
@@ -91,248 +103,15 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-save"></i> Сохранить изменения
                 </button>
-                <button type="button" class="btn btn-outline" onclick="clearDraft()">
-                    <i class="fas fa-trash"></i> Отменить изменения
-                </button>
-                <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Назад к посту
+                <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-outline">
+                    <i class="fas fa-times"></i> Отмена
                 </a>
             </div>
         </form>
     </div>
 </div>
 
-<!-- TinyMCE подключение (лучше вынести в base.html, но для автономности оставляем здесь) -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/8/tinymce.min.js" referrerpolicy="origin"></script>
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/8/langs/ru.min.js" referrerpolicy="origin"></script>
-
-<script>
-// Переменные для загружаемых файлов
-let selectedFiles = [];
-
-// Инициализация TinyMCE
-tinymce.init({
-    selector: '#postContent',
-    language: 'ru',
-    height: 500,
-    min_height: 400,
-    menubar: false,
-    branding: false,
-
-    plugins: [
-        'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table paste help wordcount autosave'
-    ],
-
-    toolbar: 'undo redo | blocks | ' +
-             'bold italic forecolor | alignleft aligncenter alignright alignjustify | ' +
-             'bullist numlist outdent indent | link image media table | removeformat | code fullscreen help',
-
-    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1e293b; }',
-
-    // Загрузка изображений через TinyMCE
-    images_upload_handler: function (blobInfo, progress) {
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '{{ url_for("upload_image") }}');
-
-            xhr.onload = function () {
-                if (xhr.status === 200) {
-                    const json = JSON.parse(xhr.responseText);
-                    if (json.location) {
-                        resolve(json.location);
-                    } else {
-                        reject('Ошибка: нет location в ответе сервера');
-                    }
-                } else {
-                    reject('HTTP ошибка: ' + xhr.status);
-                }
-            };
-
-            xhr.onerror = () => reject('Ошибка сети');
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) progress(Math.round((e.loaded / e.total) * 100));
-            };
-
-            const formData = new FormData();
-            formData.append('file', blobInfo.blob(), blobInfo.filename);
-            xhr.send(formData);
-        });
-    },
-
-    setup: function (editor) {
-        editor.on('change', function () {
-            updatePreview();
-            saveDraft();
-        });
-        editor.on('init', function () {
-            updatePreview();
-        });
-    }
-});
-
-// Предпросмотр
-function updatePreview() {
-    const content = tinymce.get('postContent').getContent() || '';
-    document.getElementById('preview').innerHTML = content;
-}
-
-// Автосохранение черновика редактирования
-function saveDraft() {
-    const draft = {
-        post_id: {{ post.id }},
-        title: document.getElementById('title').value.trim(),
-        content: tinymce.get('postContent').getContent(),
-        community: document.getElementById('community_id').value,
-        timestamp: new Date().toISOString()
-    };
-    if (draft.title || draft.content) {
-        localStorage.setItem(`edit_post_draft_${draft.post_id}`, JSON.stringify(draft));
-    }
-}
-
-function loadDraft() {
-    const key = `edit_post_draft_${{{ post.id }}}`;
-    const draftStr = localStorage.getItem(key);
-    if (!draftStr) return;
-
-    const draft = JSON.parse(draftStr);
-    const draftTime = new Date(draft.timestamp);
-    const now = new Date();
-    const hoursDiff = (now - draftTime) / (3600 * 1000);
-
-    if (hoursDiff < 24 && (draft.title || draft.content)) {
-        if (confirm(`Найден черновик редактирования от ${draftTime.toLocaleString('ru-RU')}. Восстановить?`)) {
-            document.getElementById('title').value = draft.title || '{{ post.title }}';
-            tinymce.get('postContent').setContent(draft.content || '{{ post.content | safe }}');
-            document.getElementById('community_id').value = draft.community || '{{ post.community_id or "" }}';
-            updatePreview();
-        } else {
-            localStorage.removeItem(key);
-        }
-    } else {
-        localStorage.removeItem(key);
-    }
-}
-
-function clearDraft() {
-    if (confirm('Отменить все изменения и очистить черновик?')) {
-        document.getElementById('title').value = '{{ post.title }}';
-        tinymce.get('postContent').setContent('{{ post.content | safe }}');
-        document.getElementById('community_id').value = '{{ post.community_id or "" }}';
-        selectedFiles = [];
-        renderPreview();
-        updatePreview();
-        localStorage.removeItem(`edit_post_draft_${{{ post.id }}}`);
-    }
-}
-
-// Обработка загрузки файлов (drag & drop + input)
-const dropArea = document.getElementById('drop-area');
-const fileInput = document.getElementById('images');
-
-['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    dropArea.addEventListener(eventName, preventDefaults, false);
-});
-
-function preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
-}
-
-['dragenter', 'dragover'].forEach(eventName => {
-    dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
-});
-
-['dragleave', 'drop'].forEach(eventName => {
-    dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
-});
-
-dropArea.addEventListener('drop', handleDrop, false);
-fileInput.addEventListener('change', handleFiles, false);
-
-function handleDrop(e) {
-    const dt = e.dataTransfer;
-    handleFiles({ target: { files: dt.files } });
-}
-
-function handleFiles(e) {
-    const files = [...e.target.files];
-    files.forEach(file => {
-        if (file.type.startsWith('image/') && file.size <= 5 * 1024 * 1024) {
-            selectedFiles.push(file);
-            displayPreview(file);
-        } else {
-            alert(`Файл ${file.name} недопустим (только изображения до 5MB)`);
-        }
-    });
-
-    const dataTransfer = new DataTransfer();
-    selectedFiles.forEach(f => dataTransfer.items.add(f));
-    fileInput.files = dataTransfer.files;
-}
-
-function displayPreview(file) {
-    const preview = document.getElementById('image-preview');
-    const reader = new FileReader();
-    reader.onload = e => {
-        const item = document.createElement('div');
-        item.className = 'preview-item';
-        item.innerHTML = `
-            <img src="${e.target.result}" alt="${file.name}">
-            <button class="remove-btn" onclick="removeFile('${file.name}')">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
-        preview.appendChild(item);
-    };
-    reader.readAsDataURL(file);
-}
-
-function removeFile(fileName) {
-    selectedFiles = selectedFiles.filter(f => f.name !== fileName);
-    const dataTransfer = new DataTransfer();
-    selectedFiles.forEach(f => dataTransfer.items.add(f));
-    fileInput.files = dataTransfer.files;
-    renderPreview();
-}
-
-function renderPreview() {
-    const preview = document.getElementById('image-preview');
-    preview.innerHTML = '';
-    selectedFiles.forEach(displayPreview);
-}
-
-// Валидация формы
-document.getElementById('post-form').addEventListener('submit', e => {
-    const title = document.getElementById('title').value.trim();
-    const content = tinymce.get('postContent').getContent().trim();
-
-    if (!title) {
-        e.preventDefault();
-        alert('Введите заголовок');
-        return false;
-    }
-    if (!content || content === '<p><br data-mce-bogus="1"></p>') {
-        e.preventDefault();
-        alert('Введите содержание поста');
-        return false;
-    }
-});
-
-// Инициализация
-window.addEventListener('load', () => {
-    loadDraft();
-    updatePreview();
-});
-
-// Очистка черновика после успешного сохранения
-if (document.querySelector('.alert-success')) {
-    localStorage.removeItem(`edit_post_draft_${{{ post.id }}}`);
-}
-</script>
-
 <style>
-/* Стили можно взять из create_post.html или оставить прежние */
 .edit-post-container {
     max-width: 900px;
     margin: 0 auto;
@@ -347,9 +126,15 @@ if (document.querySelector('.alert-success')) {
     font-size: 28px;
     font-weight: 700;
     color: var(--primary-color);
+    margin-bottom: 8px;
 }
 
-.create-post-card {
+.edit-post-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+
+.edit-post-card {
     background: var(--bg-card);
     border-radius: var(--radius);
     padding: 30px;
@@ -357,6 +142,411 @@ if (document.querySelector('.alert-success')) {
     box-shadow: var(--shadow-sm);
 }
 
-/* ... остальные стили для .form-group, .preview-section, .image-preview и т.д. ... */
+.form-section {
+    margin-bottom: 30px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.form-group label i {
+    margin-right: 6px;
+    color: var(--primary-color);
+}
+
+.form-control {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    transition: var(--transition);
+    font-family: inherit;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(183, 41, 41, 0.1);
+}
+
+select.form-control {
+    cursor: pointer;
+}
+
+textarea.form-control {
+    min-height: 250px;
+    resize: vertical;
+    line-height: 1.6;
+}
+
+.required {
+    color: var(--danger-color);
+    margin-left: 2px;
+}
+
+.form-text {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+/* Теги */
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+    background: var(--bg-sidebar);
+    border-radius: var(--radius-sm);
+}
+
+.tag-badge {
+    background: var(--primary-color);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* Существующие изображения */
+.existing-images-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin: 10px 0;
+}
+
+.existing-image-item {
+    width: 120px;
+    text-align: center;
+}
+
+.existing-image-item img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+}
+
+.image-filename {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    word-break: break-all;
+}
+
+/* Загрузка изображений */
+.image-upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius);
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+    background: var(--bg-sidebar);
+}
+
+.image-upload-area:hover {
+    border-color: var(--primary-color);
+    background: var(--bg-hover);
+}
+
+.image-upload-area.dragover {
+    border-color: var(--primary-color);
+    background: rgba(183, 41, 41, 0.05);
+}
+
+.file-input {
+    display: none;
+}
+
+.upload-message i {
+    font-size: 48px;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.upload-message p {
+    font-size: 16px;
+    color: var(--text-primary);
+    margin-bottom: 5px;
+}
+
+.upload-message small {
+    color: var(--text-muted);
+}
+
+.image-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.preview-item {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.preview-item .remove-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 24px;
+    height: 24px;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: var(--transition);
+}
+
+.preview-item .remove-btn:hover {
+    background: var(--danger-color);
+    transform: scale(1.1);
+}
+
+/* Предпросмотр */
+.preview-section {
+    margin-top: 24px;
+    padding: 20px;
+    background: var(--bg-sidebar);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-light);
+}
+
+.preview-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preview-section h3 i {
+    color: var(--primary-color);
+}
+
+.image-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    min-height: 100px;
+}
+
+.gallery-image {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-light);
+}
+
+.form-actions .btn {
+    flex: 1;
+    justify-content: center;
+    padding: 12px;
+}
+
+@media (max-width: 768px) {
+    .edit-post-card {
+        padding: 20px;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+}
 </style>
+
+<script>
+let selectedFiles = [];
+let formChanged = false;
+
+// Drag & Drop для изображений
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('images');
+const imagePreview = document.getElementById('image-preview');
+const imageGallery = document.getElementById('image-gallery-preview');
+
+if (dropArea && fileInput) {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
+    });
+
+    dropArea.addEventListener('drop', handleDrop, false);
+    fileInput.addEventListener('change', handleFiles, false);
+}
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    handleFiles({ target: { files: dt.files } });
+}
+
+function handleFiles(e) {
+    const files = [...e.target.files];
+    const maxSize = 5 * 1024 * 1024; // 5 MB
+
+    files.forEach(file => {
+        if (file.type.startsWith('image/')) {
+            if (file.size <= maxSize) {
+                selectedFiles.push(file);
+                displayPreview(file);
+                updateGallery();
+                formChanged = true;
+            } else {
+                alert(`Файл ${file.name} превышает 5 МБ и не будет добавлен.`);
+            }
+        } else {
+            alert(`Файл ${file.name} не является изображением.`);
+        }
+    });
+
+    updateFileInput();
+}
+
+function displayPreview(file) {
+    const reader = new FileReader();
+
+    reader.onload = e => {
+        const item = document.createElement('div');
+        item.className = 'preview-item';
+        item.innerHTML = `
+            <img src="${e.target.result}" alt="${file.name}">
+            <button class="remove-btn" onclick="removeFile('${file.name}')">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        imagePreview.appendChild(item);
+    };
+
+    reader.readAsDataURL(file);
+}
+
+function removeFile(fileName) {
+    selectedFiles = selectedFiles.filter(f => f.name !== fileName);
+    updateFileInput();
+    renderPreview();
+    updateGallery();
+    formChanged = true;
+}
+
+function renderPreview() {
+    imagePreview.innerHTML = '';
+    selectedFiles.forEach(displayPreview);
+}
+
+function updateFileInput() {
+    const dataTransfer = new DataTransfer();
+    selectedFiles.forEach(f => dataTransfer.items.add(f));
+    fileInput.files = dataTransfer.files;
+}
+
+function updateGallery() {
+    if (!imageGallery) return;
+
+    imageGallery.innerHTML = '';
+    selectedFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'gallery-image';
+            img.alt = file.name;
+            imageGallery.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// Отслеживание изменений в форме
+document.getElementById('title').addEventListener('input', () => formChanged = true);
+document.getElementById('content').addEventListener('input', () => formChanged = true);
+document.getElementById('community_id').addEventListener('change', () => formChanged = true);
+
+// Предупреждение при уходе со страницы
+window.addEventListener('beforeunload', function(e) {
+    if (formChanged) {
+        e.preventDefault();
+        e.returnValue = 'У вас есть несохраненные изменения. Покинуть страницу?';
+    }
+});
+
+document.getElementById('post-form').addEventListener('submit', function() {
+    formChanged = false;
+});
+
+// Валидация формы
+document.getElementById('post-form').addEventListener('submit', function(e) {
+    const title = document.getElementById('title').value.trim();
+    const content = document.getElementById('content').value.trim();
+
+    if (!title) {
+        e.preventDefault();
+        alert('Введите заголовок поста');
+        return false;
+    }
+
+    if (!content) {
+        e.preventDefault();
+        alert('Введите содержание поста');
+        return false;
+    }
+});
+</script>
 {% endblock %}

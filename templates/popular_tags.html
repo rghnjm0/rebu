@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Популярные теги — Rebu{% endblock %}
+
+{% block content %}
+<div class="feed-wrap">
+<div class="page-hdr">
+  <h1><i class="fas fa-cloud" style="color:var(--accent)"></i> Популярные теги</h1>
+  <p>Всего {{ tags|length }} тегов</p>
+</div>
+
+<div class="tags-cloud" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:32px;text-align:center;line-height:2.5">
+  {% for tag in tags %}
+    {% set size = 100 + (tag.count * 10) %}
+    {% if size > 250 %}{% set size = 250 %}{% endif %}
+    <a href="{{ url_for('posts_by_tag', tag_name=tag.name) }}"
+       class="post-community-tag" style="font-size:{{ size }}%;margin:0 8px;padding:4px 12px;display:inline-block;white-space:nowrap">
+      #{{ tag.name }}
+      <span class="tag-count" style="font-size:0.8em;margin-left:6px;color:var(--text-3)">{{ tag.count }}</span>
+    </a>
+  {% endfor %}
+</div>
+
+{% if not tags %}
+<div class="empty-state">
+  <i class="fas fa-tag empty-state-icon"></i>
+  <h3>Пока нет тегов</h3>
+  <p>Добавьте #тег в свой пост, и он появится здесь</p>
+</div>
+{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,573 @@
+{% extends "base.html" %}
+
+{% block title %}Мой профиль — MiniReddit{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+
+    <!-- Карточка профиля -->
+    <div class="profile-card">
+        <div class="profile-header">
+            <div class="profile-avatar-large">{{ user.username|first|upper }}</div>
+            <div class="profile-info">
+                <div class="profile-display-name">
+                    {{ user.display_name if user.display_name else user.username }}
+                </div>
+                <div class="profile-login">
+                    <i class="fas fa-at"></i> <span>{{ user.username }}</span>
+                    <span class="profile-login-note">· логин нельзя изменить</span>
+                </div>
+                <div class="profile-meta">
+                    <span class="profile-role role-{{ user.role }}">
+                        {% if user.role == 'admin' %}<i class="fas fa-crown"></i> Администратор
+                        {% elif user.role == 'moderator' %}<i class="fas fa-shield-alt"></i> Модератор
+                        {% else %}<i class="fas fa-user"></i> Пользователь{% endif %}
+                    </span>
+                    <span class="profile-date">
+                        <i class="fas fa-calendar-alt"></i>
+                        Зарегистрирован {{ user.created_at[:10] }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Статистика -->
+        <div class="profile-stats">
+            <div class="stat-item">
+                <div class="stat-value">{{ posts_count }}</div>
+                <div class="stat-label">Постов</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ comments_count }}</div>
+                <div class="stat-label">Комментариев</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ subs_count }}</div>
+                <div class="stat-label">Подписок</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ user.karma or 0 }}</div>
+                <div class="stat-label">Карма</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Редактирование имени профиля -->
+    <div class="profile-edit-card">
+        <h3><i class="fas fa-edit"></i> Изменить имя профиля</h3>
+        <p class="profile-edit-hint">
+            Имя профиля — это отображаемое имя, которое видят другие пользователи.
+            Логин (<strong>{{ user.username }}</strong>) изменить нельзя.
+        </p>
+        <form method="POST" action="{{ url_for('profile_edit') }}" class="profile-edit-form">
+            <div class="form-row">
+                <div class="form-group flex-grow">
+                    <label for="display_name">Имя профиля</label>
+                    <input
+                        type="text"
+                        id="display_name"
+                        name="display_name"
+                        class="form-control"
+                        value="{{ user.display_name or '' }}"
+                        placeholder="Введите имя профиля (необязательно)"
+                        maxlength="50"
+                    >
+                    <small class="form-hint">До 50 символов. Если не задано — будет использован логин.</small>
+                </div>
+                <div class="form-group form-submit-group">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Сохранить
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Изменение пароля -->
+    <div class="profile-edit-card">
+        <h3><i class="fas fa-lock"></i> Изменить пароль</h3>
+        <p class="profile-edit-hint">Для смены пароля введите текущий пароль и придумайте новый.</p>
+        <form method="POST" action="{{ url_for('profile_change_password') }}" class="profile-edit-form" id="passwordForm">
+            <div class="form-group">
+                <label for="current_password">Текущий пароль</label>
+                <div class="input-password-wrap">
+                    <input type="password" id="current_password" name="current_password"
+                           class="form-control" placeholder="Введите текущий пароль" required autocomplete="current-password">
+                    <button type="button" class="toggle-pw" data-target="current_password" tabindex="-1">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="new_password">Новый пароль</label>
+                <div class="input-password-wrap">
+                    <input type="password" id="new_password" name="new_password"
+                           class="form-control" placeholder="Минимум 6 символов" required autocomplete="new-password" minlength="6">
+                    <button type="button" class="toggle-pw" data-target="new_password" tabindex="-1">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <div class="password-strength" id="strengthBar">
+                    <div class="strength-fill" id="strengthFill"></div>
+                </div>
+                <small class="form-hint strength-text" id="strengthText"></small>
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">Подтверждение нового пароля</label>
+                <div class="input-password-wrap">
+                    <input type="password" id="confirm_password" name="confirm_password"
+                           class="form-control" placeholder="Повторите новый пароль" required autocomplete="new-password">
+                    <button type="button" class="toggle-pw" data-target="confirm_password" tabindex="-1">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <small class="form-hint match-hint" id="matchHint"></small>
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary" id="pwSubmitBtn">
+                    <i class="fas fa-key"></i> Сменить пароль
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Последние посты -->
+    <div class="profile-posts">
+        <h3><i class="fas fa-newspaper"></i> Последние посты</h3>
+        {% if posts %}
+            <div class="posts-list">
+                {% for post in posts %}
+                <div class="post-item-compact">
+                    <div class="post-score-compact">
+                        <i class="fas fa-arrow-up"></i>
+                        {{ post.score }}
+                    </div>
+                    <div class="post-info-compact">
+                        <a href="{{ url_for('post_detail', post_id=post.id) }}" class="post-title-compact">
+                            {{ post.title }}
+                        </a>
+                        <div class="post-meta-compact">
+                            {% if post.community_name %}
+                            <a href="{{ url_for('community_detail', community_name=post.community_name) }}" class="community-link-small">
+                                r/{{ post.community_name }}
+                            </a>
+                            {% endif %}
+                            <span class="post-date-compact">{{ post.created_at[:10] }}</span>
+                            <span class="post-comments-compact">
+                                <i class="fas fa-comment"></i> {{ post.comments_count }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state-small">
+                <i class="fas fa-pen-nib"></i>
+                <p>Вы ещё не создали ни одного поста.</p>
+                <a href="{{ url_for('create_post') }}" class="btn btn-primary btn-small">Создать пост</a>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<style>
+.profile-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 760px;
+}
+
+/* Карточка профиля */
+.profile-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 12px;
+    padding: 28px;
+}
+
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.profile-avatar-large {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff6314, #ff8c00);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.profile-display-name {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary, #1a1a1b);
+    margin-bottom: 4px;
+}
+
+.profile-login {
+    font-size: 14px;
+    color: var(--text-secondary, #878a8c);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.profile-login span:first-of-type {
+    color: var(--text-primary, #1a1a1b);
+    font-weight: 500;
+}
+
+.profile-login-note {
+    font-size: 12px;
+    color: #aaa;
+    font-style: italic;
+}
+
+.profile-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.profile-role {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.profile-role.role-admin {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.profile-role.role-moderator {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.profile-role.role-user {
+    background: #e2e3e5;
+    color: #383d41;
+}
+
+.profile-date {
+    font-size: 12px;
+    color: var(--text-secondary, #878a8c);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Статистика */
+.profile-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border-color, #e0e0e0);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.stat-item {
+    background: var(--card-bg, #fff);
+    padding: 16px 12px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary, #1a1a1b);
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-secondary, #878a8c);
+    margin-top: 2px;
+}
+
+/* Редактирование */
+.profile-edit-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.profile-edit-card h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    color: var(--text-primary, #1a1a1b);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.profile-edit-hint {
+    font-size: 14px;
+    color: var(--text-secondary, #878a8c);
+    margin: 0 0 18px;
+}
+
+.profile-edit-form .form-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.flex-grow { flex: 1; }
+
+.form-submit-group {
+    flex-shrink: 0;
+    padding-bottom: 20px;
+}
+
+.form-hint {
+    font-size: 12px;
+    color: var(--text-secondary, #878a8c);
+    margin-top: 4px;
+    display: block;
+}
+
+/* Посты */
+.profile-posts {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.profile-posts h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 16px;
+    color: var(--text-primary, #1a1a1b);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.posts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--border-color, #e0e0e0);
+    border: 1px solid var(--border-color, #e0e0e0);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.post-item-compact {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: var(--card-bg, #fff);
+    transition: background 0.15s;
+}
+
+.post-item-compact:hover {
+    background: var(--hover-bg, #f6f7f8);
+}
+
+.post-score-compact {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary, #878a8c);
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.post-title-compact {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary, #1a1a1b);
+    text-decoration: none;
+    display: block;
+    margin-bottom: 3px;
+}
+
+.post-title-compact:hover { text-decoration: underline; }
+
+.post-meta-compact {
+    font-size: 12px;
+    color: var(--text-secondary, #878a8c);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.community-link-small {
+    color: #ff6314;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.community-link-small:hover { text-decoration: underline; }
+
+.empty-state-small {
+    text-align: center;
+    padding: 32px 0;
+    color: var(--text-secondary, #878a8c);
+}
+
+.empty-state-small i {
+    font-size: 36px;
+    margin-bottom: 12px;
+    display: block;
+    opacity: 0.4;
+}
+
+.empty-state-small p {
+    margin: 0 0 16px;
+}
+
+@media (max-width: 600px) {
+    .profile-header { flex-direction: column; text-align: center; }
+    .profile-meta { justify-content: center; }
+    .profile-stats { grid-template-columns: repeat(2, 1fr); }
+    .profile-edit-form .form-row { flex-direction: column; }
+    .form-submit-group { padding-bottom: 0; width: 100%; }
+    .form-submit-group .btn { width: 100%; }
+}
+
+/* Поле пароля */
+.input-password-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-password-wrap .form-control {
+    padding-right: 44px;
+    width: 100%;
+}
+
+.toggle-pw {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary, #878a8c);
+    padding: 4px;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.toggle-pw:hover { color: var(--text-primary, #1a1a1b); }
+
+/* Индикатор силы пароля */
+.password-strength {
+    height: 4px;
+    background: var(--border-color, #e0e0e0);
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+}
+
+.strength-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 2px;
+    transition: width 0.3s, background 0.3s;
+}
+
+.strength-text { margin-top: 4px; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Показать/скрыть пароль
+    document.querySelectorAll('.toggle-pw').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var input = document.getElementById(this.dataset.target);
+            var icon = this.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
+    });
+
+    // Индикатор силы пароля
+    var newPw = document.getElementById('new_password');
+    var fill  = document.getElementById('strengthFill');
+    var txt   = document.getElementById('strengthText');
+
+    if (newPw) {
+        newPw.addEventListener('input', function () {
+            var v = this.value;
+            var score = 0;
+            if (v.length >= 6)  score++;
+            if (v.length >= 10) score++;
+            if (/[A-Z]/.test(v)) score++;
+            if (/[0-9]/.test(v)) score++;
+            if (/[^A-Za-z0-9]/.test(v)) score++;
+
+            var pct    = ['0%','20%','40%','60%','80%','100%'][score];
+            var colors = ['#ccc','#e74c3c','#e67e22','#f1c40f','#2ecc71','#27ae60'];
+            var labels = ['','Очень слабый','Слабый','Средний','Хороший','Надёжный'];
+
+            fill.style.width = v.length ? pct : '0%';
+            fill.style.background = colors[score];
+            txt.textContent = v.length ? labels[score] : '';
+            txt.style.color = colors[score];
+        });
+    }
+
+    // Проверка совпадения паролей
+    var confirmPw  = document.getElementById('confirm_password');
+    var matchHint  = document.getElementById('matchHint');
+    var submitBtn  = document.getElementById('pwSubmitBtn');
+
+    function checkMatch() {
+        if (!confirmPw.value) {
+            matchHint.textContent = '';
+            submitBtn.disabled = false;
+            return;
+        }
+        if (newPw.value === confirmPw.value) {
+            matchHint.textContent = '✓ Пароли совпадают';
+            matchHint.style.color = '#27ae60';
+            submitBtn.disabled = false;
+        } else {
+            matchHint.textContent = '✗ Пароли не совпадают';
+            matchHint.style.color = '#e74c3c';
+            submitBtn.disabled = true;
+        }
+    }
+
+    if (confirmPw) {
+        confirmPw.addEventListener('input', checkMatch);
+        newPw.addEventListener('input', checkMatch);
+    }
+});
+</script>
+{% endblock %}

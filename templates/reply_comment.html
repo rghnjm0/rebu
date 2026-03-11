@@ -1,0 +1,56 @@
+<div class="comment-item" id="c{{ comment.id }}" style="margin-left:{% if comment.parent_id %}20{% else %}0{% endif %}px">
+  <div class="comment-meta">
+    <a href="{{ url_for('user_profile', username=comment.username) }}" class="comment-author">
+      {{ comment.username }}
+      {% if comment.author_role == 'admin' %}<i class="fas fa-crown role-crown"></i>
+      {% elif comment.author_role == 'moderator' %}<i class="fas fa-shield-halved role-shield"></i>{% endif %}
+    </a>
+    <span class="comment-time">{{ comment.created_at[:16] }}</span>
+
+    <div class="comment-acts" style="margin-left:auto">
+      {% if session.user_id and session.user_id != comment.user_id %}
+      <a href="{{ url_for('report_content', content_type='comment', content_id=comment.id) }}"
+         class="cact rep-flag" title="Пожаловаться"><i class="fas fa-flag"></i></a>
+      {% endif %}
+      {% if session.user_id %}
+      <a href="{{ url_for('reply_to_comment', comment_id=comment.id) }}" class="cact" title="Ответить">
+        <i class="fas fa-reply"></i>
+      </a>
+      {% endif %}
+      {% if session.user_id == comment.user_id and not comment.is_deleted %}
+      <a href="{{ url_for('edit_comment', comment_id=comment.id) }}" class="cact" title="Редактировать">
+        <i class="fas fa-pen"></i>
+      </a>
+      <form method="POST" action="{{ url_for('delete_own_comment', post_id=comment.post_id, comment_id=comment.id) }}"
+            style="display:inline" onsubmit="return confirm('Удалить комментарий?')">
+        <button type="submit" class="cact del" title="Удалить"><i class="fas fa-trash"></i></button>
+      </form>
+      {% endif %}
+      {% if can_moderate %}
+        {% if comment.is_deleted %}
+        <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='restore') }}"
+           class="cact" onclick="return confirm('Восстановить?')" title="Восстановить"><i class="fas fa-rotate-left"></i></a>
+        {% else %}
+        <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='delete') }}"
+           class="cact del" onclick="return confirm('Удалить?')" title="Удалить"><i class="fas fa-trash"></i></a>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if comment.is_deleted %}
+  <div style="font-size:13px;color:var(--text-3);font-style:italic"><i class="fas fa-trash" style="font-size:11px"></i> Комментарий удалён</div>
+  {% else %}
+  <div class="comment-body">{{ comment.content }}</div>
+  {% endif %}
+
+  {% if comment.replies %}
+    <div style="margin-top:12px;border-left:1px solid var(--border);padding-left:12px">
+      {% for reply in comment.replies %}
+        {% with comment=reply %}
+          {% include "comment_tree.html" %}
+        {% endwith %}
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

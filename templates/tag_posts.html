@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Посты с тегом #{{ tag }} — Rebu{% endblock %}
+
+{% block content %}
+<div class="feed-wrap">
+<div class="page-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
+  <div>
+    <h1><span style="color:var(--text-3)">#</span>{{ tag }}</h1>
+    <p>{{ posts|length }} {{ 'пост' if posts|length == 1 else 'поста' if posts|length < 5 else 'постов' }}</p>
+  </div>
+  <a href="{{ url_for('popular_tags') }}" class="btn btn-ghost btn-sm">
+    <i class="fas fa-cloud"></i> Все теги
+  </a>
+</div>
+
+{% if posts %}
+  {% for post in posts %}
+  <article class="post-card">
+    <div class="post-meta">
+      {% if post.community_name %}
+      <a href="{{ url_for('community_detail', community_name=post.community_name) }}" class="post-community-tag">
+        r/{{ post.community_name }}
+      </a>
+      {% endif %}
+      <a href="{{ url_for('user_profile', username=post.username) }}" class="post-author-link">{{ post.username }}</a>
+      <span class="post-time">{{ post.created_at[:16] }}</span>
+    </div>
+
+    <h2 class="post-title">
+      <a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a>
+    </h2>
+
+    <div class="post-actions">
+      {% set score = post.upvotes - post.downvotes %}
+      <span class="score-chip {% if score > 0 %}pos{% elif score < 0 %}neg{% endif %}">
+        <i class="fas fa-arrow-up"></i> {{ score }}
+      </span>
+      <a href="{{ url_for('post_detail', post_id=post.id) }}" class="act-btn">
+        <i class="fas fa-comment"></i> {{ post.comments_count }}
+      </a>
+      {% if session.user_id %}
+      <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}"
+         class="act-btn bm {% if post.id in user_bookmarks %}on{% endif %}">
+        <i class="fas fa-bookmark"></i>
+      </a>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+{% else %}
+<div class="empty-state">
+  <i class="fas fa-tag empty-state-icon"></i>
+  <h3>Нет постов с тегом #{{ tag }}</h3>
+  <p>Будьте первым, кто использует этот тег!</p>
+</div>
+{% endif %}
+</div>
+{% endblock %}

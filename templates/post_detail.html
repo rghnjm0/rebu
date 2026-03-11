@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block title %}{{ post.title }} - MiniReddit{% endblock %}
+
 {% block content %}
 <div class="post-detail">
     <div class="post-full">
@@ -14,6 +16,7 @@
                 ↓
             </a>
         </div>
+
         <div class="post-content">
             <div class="post-header">
                 {% if post.community_name %}
@@ -67,6 +70,15 @@
                 </div>
                 {% endif %}
 
+                <!-- Кнопка редактирования для автора -->
+                {% if is_author and not post.is_deleted %}
+                <span class="separator">•</span>
+                <a href="{{ url_for('edit_post', post_id=post.id) }}"
+                   class="edit-link" title="Редактировать пост">
+                    <i class="fas fa-edit"></i>
+                </a>
+                {% endif %}
+
                 <!-- Кнопка удаления для автора -->
                 {% if is_author and not post.is_deleted %}
                 <span class="separator">•</span>
@@ -90,12 +102,24 @@
                 </span>
                 {% if session.user_id %}
                 <span class="separator">•</span>
-                <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}" class="bookmark-link {% if user_bookmarked %}active{% endif %}" title="Добавить в закладки">
+                <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}"
+                   class="bookmark-link {% if user_bookmarked %}active{% endif %}"
+                   title="Добавить в закладки">
                     <i class="fas fa-bookmark"></i>
                     {% if user_bookmarked %}В закладках{% else %}В закладки{% endif %}
                 </a>
                 {% endif %}
             </div>
+
+            <!-- Блок с тегами -->
+            {% if post_tags %}
+            <div class="post-tags">
+                <i class="fas fa-tags"></i>
+                {% for tag in post_tags %}
+                <a href="{{ url_for('posts_by_tag', tag_name=tag.name) }}" class="tag-link">#{{ tag.name }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
 
             {% if post.is_deleted %}
             <div class="deleted-message">
@@ -108,18 +132,99 @@
                 </div>
             </div>
             {% else %}
-            <div class="post-text markdown-content">
-                {{ post.content|safe }}
+            <!-- УЛУЧШЕННЫЙ БЛОК С ИЗОБРАЖЕНИЯМИ И ТЕКСТОМ -->
+            <div class="post-content-wrapper">
+                {% set images = post.content|extract_all_images %}
+                {% if images %}
+                    <div class="post-image-gallery {% if images|length == 1 %}single-image{% endif %}">
+                        {% for image in images %}
+                        <div class="gallery-item">
+                            <img src="{{ image.url }}"
+                                 alt="{{ image.alt }}"
+                                 class="post-image lazy"
+                                 loading="lazy"
+                                 onclick="openImageModal({{ loop.index0 }})"
+                                 data-index="{{ loop.index0 }}"
+                                 {% if image.caption %}data-caption="{{ image.caption }}"{% endif %}>
+                            {% if image.caption %}
+                            <div class="image-caption">{{ image.caption }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if images|length > 1 %}
+                    <button class="view-all-images" onclick="openImageModal(0)">
+                        <i class="fas fa-images"></i>
+                        <span>Все {{ images|length }} изображений</span>
+                    </button>
+                    {% endif %}
+                {% endif %}
+
+                <!-- Текстовый контент без изображений -->
+                <div class="post-text">
+                    {{ post.content|remove_images|safe }}
+                </div>
+            </div>
+
+            <!-- Блок с реакциями -->
+            <div class="post-reactions">
+                <h4><i class="fas fa-heart"></i> Реакции</h4>
+
+                <div class="reactions-container">
+                    <button class="reaction-btn {% if user_reaction == 'like' %}active{% endif %}"
+                            onclick="window.location.href='{{ url_for('add_reaction', post_id=post.id, reaction='like') }}'"
+                            title="Нравится">
+                        <span class="reaction-icon">👍</span>
+                        <span class="reaction-count">{{ reactions.like }}</span>
+                    </button>
+
+                    <button class="reaction-btn {% if user_reaction == 'love' %}active{% endif %}"
+                            onclick="window.location.href='{{ url_for('add_reaction', post_id=post.id, reaction='love') }}'"
+                            title="Обожаю">
+                        <span class="reaction-icon">❤️</span>
+                        <span class="reaction-count">{{ reactions.love }}</span>
+                    </button>
+
+                    <button class="reaction-btn {% if user_reaction == 'laugh' %}active{% endif %}"
+                            onclick="window.location.href='{{ url_for('add_reaction', post_id=post.id, reaction='laugh') }}'"
+                            title="Смешно">
+                        <span class="reaction-icon">😂</span>
+                        <span class="reaction-count">{{ reactions.laugh }}</span>
+                    </button>
+
+                    <button class="reaction-btn {% if user_reaction == 'sad' %}active{% endif %}"
+                            onclick="window.location.href='{{ url_for('add_reaction', post_id=post.id, reaction='sad') }}'"
+                            title="Грустно">
+                        <span class="reaction-icon">😢</span>
+                        <span class="reaction-count">{{ reactions.sad }}</span>
+                    </button>
+
+                    <button class="reaction-btn {% if user_reaction == 'angry' %}active{% endif %}"
+                            onclick="window.location.href='{{ url_for('add_reaction', post_id=post.id, reaction='angry') }}'"
+                            title="Злюсь">
+                        <span class="reaction-icon">😡</span>
+                        <span class="reaction-count">{{ reactions.angry }}</span>
+                    </button>
+
+                    <button class="reaction-btn {% if user_reaction == 'fire' %}active{% endif %}"
+                            onclick="window.location.href='{{ url_for('add_reaction', post_id=post.id, reaction='fire') }}'"
+                            title="Огонь!">
+                        <span class="reaction-icon">🔥</span>
+                        <span class="reaction-count">{{ reactions.fire }}</span>
+                    </button>
+                </div>
             </div>
             {% endif %}
         </div>
     </div>
 
+    <!-- Секция комментариев -->
     <div class="comments-section">
         <div class="comments-header">
             <h3>
                 <i class="fas fa-comments"></i>
-                Комментарии ({{ comments|length }})
+                Комментарии ({{ comments_tree|length }})
             </h3>
 
             {% if session.user_id and not post.is_deleted %}
@@ -157,68 +262,92 @@
         </div>
         {% endif %}
 
-        <div class="comments">
-            {% if comments %}
-                {% for comment in comments %}
-                <div class="comment" id="comment-{{ comment.id }}">
-                    <div class="comment-header">
-                        <div class="comment-author-info">
-                            <span class="comment-author">
-                                {{ comment.username }}
-                                {% if comment.author_role == 'admin' %}
-                                <span class="role-badge admin" title="Администратор">👑</span>
-                                {% elif comment.author_role == 'moderator' %}
-                                <span class="role-badge moderator" title="Модератор">🛡️</span>
-                                {% endif %}
-                            </span>
-                            <span class="comment-date">{{ comment.created_at }}</span>
-                        </div>
+        <!-- Макрос для рекурсивного отображения комментариев -->
+        {% macro render_comment(comment) %}
+        <div class="comment" id="comment-{{ comment.id }}" style="margin-left: {{ 20 if comment.parent_id else 0 }}px;">
+            <div class="comment-header">
+                <div class="comment-author-info">
+                    <span class="comment-author">
+                        {{ comment.username }}
+                        {% if comment.author_role == 'admin' %}
+                        <span class="role-badge admin" title="Администратор">👑</span>
+                        {% elif comment.author_role == 'moderator' %}
+                        <span class="role-badge moderator" title="Модератор">🛡️</span>
+                        {% endif %}
+                    </span>
+                    <span class="comment-date">{{ comment.created_at }}</span>
+                </div>
 
-                        <div class="comment-actions">
-                            {% if session.user_id and session.user_id != comment.user_id %}
-                            <a href="{{ url_for('report_content', content_type='comment', content_id=comment.id) }}"
-                               class="report-link-small" title="Пожаловаться">
-                                <i class="fas fa-flag"></i>
-                            </a>
-                            {% endif %}
+                <div class="comment-actions">
+                    {% if session.user_id and session.user_id != comment.user_id %}
+                    <a href="{{ url_for('report_content', content_type='comment', content_id=comment.id) }}"
+                       class="report-link-small" title="Пожаловаться">
+                        <i class="fas fa-flag"></i>
+                    </a>
+                    {% endif %}
 
-                            {% if can_moderate %}
-                                {% if comment.is_deleted %}
-                                <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='restore') }}"
-                                   class="moderate-link-small restore"
-                                   onclick="return confirm('Восстановить этот комментарий?')"
-                                   title="Восстановить комментарий">
-                                    <i class="fas fa-undo-alt"></i>
-                                </a>
-                                {% else %}
-                                <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='delete') }}"
-                                   class="moderate-link-small delete"
-                                   onclick="return confirm('Удалить этот комментарий?')"
-                                   title="Удалить комментарий">
-                                    <i class="fas fa-trash-alt"></i>
-                                </a>
-                                {% endif %}
-                            {% endif %}
+                    {% if session.user_id %}
+                    <a href="{{ url_for('reply_to_comment', comment_id=comment.id) }}"
+                       class="reply-link-small" title="Ответить">
+                        <i class="fas fa-reply"></i>
+                    </a>
+                    {% endif %}
 
-                            {% if session.user_id == comment.user_id and not comment.is_deleted %}
-                            <a href="#" class="edit-link-small" title="Редактировать (в разработке)">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            {% endif %}
-                        </div>
-                    </div>
+                    {% if session.user_id == comment.user_id and not comment.is_deleted %}
+                    <a href="{{ url_for('edit_comment', comment_id=comment.id) }}"
+                       class="edit-link-small" title="Редактировать">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                    {% endif %}
 
-                    {% if comment.is_deleted %}
-                    <div class="comment-deleted">
-                        <i class="fas fa-trash-alt"></i>
-                        Комментарий удален
-                    </div>
-                    {% else %}
-                    <div class="comment-text">
-                        {{ comment.content }}
-                    </div>
+                    {% if can_moderate %}
+                        {% if comment.is_deleted %}
+                        <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='restore') }}"
+                           class="moderate-link-small restore" title="Восстановить">
+                            <i class="fas fa-undo-alt"></i>
+                        </a>
+                        {% else %}
+                        <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='delete') }}"
+                           class="moderate-link-small delete" title="Удалить">
+                            <i class="fas fa-trash-alt"></i>
+                        </a>
+                        {% endif %}
                     {% endif %}
                 </div>
+            </div>
+
+            {% if comment.is_deleted %}
+            <div class="comment-deleted">
+                <i class="fas fa-trash-alt"></i> Комментарий удален
+            </div>
+            {% else %}
+            <div class="comment-text">{{ comment.content }}</div>
+
+            <!-- Кнопка ответа под комментарием (для мобильных) -->
+            {% if session.user_id %}
+            <div class="comment-footer">
+                <a href="{{ url_for('reply_to_comment', comment_id=comment.id) }}" class="reply-link">
+                    <i class="fas fa-reply"></i> Ответить
+                </a>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- Рекурсивно выводим ответы -->
+            {% if comment.replies %}
+                <div class="comment-replies">
+                    {% for reply in comment.replies %}
+                        {{ render_comment(reply) }}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        {% endmacro %}
+
+        <div class="comments">
+            {% if comments_tree %}
+                {% for comment in comments_tree %}
+                    {{ render_comment(comment) }}
                 {% endfor %}
             {% else %}
                 <div class="no-comments">
@@ -231,6 +360,17 @@
             {% endif %}
         </div>
     </div>
+</div>
+
+<!-- Модальное окно для увеличенного просмотра изображений -->
+<div id="imageModal" class="modal-gallery">
+    <div class="gallery-container">
+        <img id="modalImage" class="gallery-image" src="" alt="Увеличенное изображение">
+    </div>
+    <div class="gallery-close" onclick="closeImageModal()">&times;</div>
+    <div class="gallery-nav prev" onclick="changeImage(-1)">❮</div>
+    <div class="gallery-nav next" onclick="changeImage(1)">❯</div>
+    <div class="gallery-counter" id="imageCounter"></div>
 </div>
 
 <!-- Модальное окно подтверждения удаления поста -->
@@ -258,7 +398,1009 @@
     </div>
 </div>
 
+<style>
+/* Стили для детальной страницы поста */
+.post-detail {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.post-full {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 30px;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 24px;
+    border: 1px solid var(--border-light);
+}
+
+.vote {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.vote-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 16px;
+    text-decoration: none;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.vote-btn:hover {
+    background: var(--bg-hover);
+}
+
+.vote-btn.up.voted {
+    background: var(--success-color);
+    color: white;
+    border-color: var(--success-color);
+}
+
+.vote-btn.down.voted {
+    background: var(--danger-color);
+    color: white;
+    border-color: var(--danger-color);
+}
+
+.score {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.post-content {
+    flex: 1;
+}
+
+.community-badge {
+    background: var(--primary-gradient);
+    color: white;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.community-badge:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.post-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+}
+
+.separator {
+    color: var(--text-light);
+}
+
+.post-author {
+    color: var(--text-secondary);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.role-badge {
+    display: inline-block;
+    font-size: 14px;
+}
+
+.role-badge.admin {
+    color: #fbbf24;
+    filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.3));
+}
+
+.role-badge.moderator {
+    color: #60a5fa;
+    filter: drop-shadow(0 0 2px rgba(96, 165, 250, 0.3));
+}
+
+.report-link {
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.report-link:hover {
+    color: var(--danger-color);
+}
+
+.edit-link {
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.edit-link:hover {
+    color: var(--primary-color);
+}
+
+.delete-own-link {
+    color: var(--text-muted);
+    transition: var(--transition);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.delete-own-link:hover {
+    color: var(--danger-color);
+}
+
+.moderation-actions {
+    display: inline-flex;
+    gap: 8px;
+}
+
+.moderate-link {
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.moderate-link.delete:hover {
+    color: var(--danger-color);
+}
+
+.moderate-link.restore:hover {
+    color: var(--success-color);
+}
+
+.post-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0;
+    padding: 12px 0;
+    border-top: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+    font-size: 14px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+}
+
+.vote-info i.fa-arrow-up {
+    color: var(--success-color);
+}
+
+.vote-info i.fa-arrow-down {
+    color: var(--danger-color);
+}
+
+.comment-info i {
+    color: var(--info-color);
+}
+
+.bookmark-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.bookmark-link:hover {
+    color: var(--accent-color);
+}
+
+.bookmark-link.active {
+    color: var(--accent-color);
+}
+
+/* Теги */
+.post-tags {
+    margin: 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+}
+
+.tag-link {
+    background: var(--bg-sidebar);
+    color: var(--primary-color);
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    text-decoration: none;
+    border: 1px solid var(--border-light);
+    transition: all 0.2s;
+}
+
+.tag-link:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* Реакции */
+.post-reactions {
+    margin: 24px 0;
+    padding: 16px;
+    background: var(--bg-sidebar);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-light);
+}
+
+.post-reactions h4 {
+    font-size: 1rem;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+}
+
+.reactions-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.reaction-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 999px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-secondary);
+}
+
+.reaction-btn:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary-color);
+    background: var(--bg-hover);
+}
+
+.reaction-btn.active {
+    background: rgba(183, 41, 41, 0.1);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.reaction-icon {
+    font-size: 1.2rem;
+}
+
+.reaction-count {
+    font-weight: 600;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* Стили для изображений в постах */
+.post-text img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-sm);
+    margin: 15px 0;
+    box-shadow: var(--shadow-sm);
+    display: block;
+}
+
+.deleted-message {
+    padding: 20px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: var(--radius);
+    color: var(--danger-color);
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+/* Комментарии */
+.comments-section {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 24px;
+    border: 1px solid var(--border-light);
+}
+
+.comments-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.comments-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.comment-form {
+    margin-bottom: 30px;
+    background: var(--bg-sidebar);
+    padding: 20px;
+    border-radius: var(--radius);
+}
+
+.comment-form textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    min-height: 100px;
+    margin-bottom: 12px;
+    background: var(--bg-main);
+    resize: vertical;
+    font-family: inherit;
+}
+
+.comment-form textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.login-prompt, .deleted-prompt {
+    background: var(--bg-highlight);
+    padding: 16px;
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+    text-align: center;
+    border-left: 3px solid var(--info-color);
+}
+
+.login-prompt p, .deleted-prompt p {
+    color: var(--text-secondary);
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.login-prompt a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+/* Древовидные комментарии */
+.comment-replies {
+    margin-left: 40px;
+    border-left: 2px solid var(--border-light);
+    padding-left: 20px;
+    margin-top: 16px;
+}
+
+.comment {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: var(--bg-sidebar);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--primary-color);
+    transition: all 0.2s;
+}
+
+.comment:hover {
+    background: var(--bg-hover);
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.comment-author-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.comment-author {
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.comment-date {
+    color: var(--text-light);
+    font-size: 12px;
+}
+
+.comment-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.report-link-small, .moderate-link-small, .edit-link-small, .reply-link-small {
+    color: var(--text-muted);
+    font-size: 12px;
+    transition: var(--transition);
+    padding: 4px;
+    text-decoration: none;
+}
+
+.report-link-small:hover {
+    color: var(--danger-color);
+}
+
+.edit-link-small:hover {
+    color: var(--primary-color);
+}
+
+.reply-link-small:hover {
+    color: var(--primary-color);
+}
+
+.moderate-link-small.delete:hover {
+    color: var(--danger-color);
+}
+
+.moderate-link-small.restore:hover {
+    color: var(--success-color);
+}
+
+.comment-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+}
+
+.comment-footer {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-light);
+}
+
+.reply-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+}
+
+.reply-link:hover {
+    color: var(--primary-color);
+    background: var(--bg-card);
+}
+
+.comment-deleted {
+    padding: 12px;
+    background: rgba(239, 68, 68, 0.05);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.no-comments {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.no-comments-icon {
+    width: 64px;
+    height: 64px;
+    background: var(--bg-sidebar);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 24px;
+    color: var(--primary-color);
+}
+
+.no-comments h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.no-comments p {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* Модальное окно для изображений */
+.modal-gallery {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.98);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-gallery.show {
+    display: flex;
+}
+
+.gallery-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+
+.gallery-image {
+    max-width: 100%;
+    max-height: 90vh;
+    object-fit: contain;
+    border-radius: var(--radius);
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.7);
+    animation: zoomIn 0.3s ease;
+}
+
+@keyframes zoomIn {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.gallery-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: white;
+    font-size: 40px;
+    cursor: pointer;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    transition: var(--transition);
+}
+
+.gallery-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: rotate(90deg);
+}
+
+.gallery-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    color: white;
+    font-size: 30px;
+    cursor: pointer;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    transition: var(--transition);
+}
+
+.gallery-nav:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.gallery-nav.prev {
+    left: 20px;
+}
+
+.gallery-nav.next {
+    right: 20px;
+}
+
+.gallery-counter {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: 16px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px 16px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+}
+
+/* Модальное окно подтверждения */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    width: 90%;
+    max-width: 500px;
+    box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.close-btn:hover {
+    color: var(--danger-color);
+}
+
+.modal-body {
+    padding: 24px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.modal-footer {
+    padding: 20px 24px;
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .post-full {
+        flex-direction: column;
+        padding: 16px;
+    }
+
+    .vote {
+        flex-direction: row;
+        justify-content: center;
+    }
+
+    .post-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .post-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .reactions-container {
+        justify-content: center;
+    }
+
+    .reaction-btn {
+        padding: 6px 12px;
+    }
+
+    .comment-replies {
+        margin-left: 20px;
+        padding-left: 12px;
+    }
+
+    .comment {
+        padding: 12px;
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+    }
+
+    .modal-footer {
+        flex-direction: column;
+    }
+
+    .modal-footer .btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .post-image-gallery .post-image {
+        width: 100%;
+        height: auto;
+        max-height: 200px;
+    }
+}
+</style>
+
 <script>
+// Массив с URL изображений
+let modalImages = [];
+let currentImageIndex = 0;
+
+// Функция для извлечения всех изображений из контента
+function extractImagesFromContent() {
+    const images = [];
+    document.querySelectorAll('.post-image').forEach(img => {
+        if (img.src) {
+            images.push(img.src);
+        }
+    });
+    return images;
+}
+
+// Открыть модальное окно с изображением
+function openImageModal(index) {
+    modalImages = extractImagesFromContent();
+    if (modalImages.length === 0) return;
+
+    currentImageIndex = index;
+    updateModalImage();
+
+    const modal = document.getElementById('imageModal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    // Добавляем обработчик клавиш
+    document.addEventListener('keydown', handleModalKeyPress);
+}
+
+// Закрыть модальное окно
+function closeImageModal() {
+    const modal = document.getElementById('imageModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', handleModalKeyPress);
+}
+
+// Переключение изображения
+function changeImage(direction) {
+    currentImageIndex = (currentImageIndex + direction + modalImages.length) % modalImages.length;
+    updateModalImage();
+}
+
+// Обновить изображение в модальном окне
+function updateModalImage() {
+    const modalImage = document.getElementById('modalImage');
+    const counter = document.getElementById('imageCounter');
+
+    modalImage.src = modalImages[currentImageIndex];
+    if (counter) {
+        counter.textContent = `${currentImageIndex + 1} / ${modalImages.length}`;
+    }
+
+    // Предзагрузка соседних изображений
+    preloadAdjacentImages();
+}
+
+// Предзагрузка соседних изображений
+function preloadAdjacentImages() {
+    const nextIndex = (currentImageIndex + 1) % modalImages.length;
+    const prevIndex = (currentImageIndex - 1 + modalImages.length) % modalImages.length;
+
+    const nextImg = new Image();
+    nextImg.src = modalImages[nextIndex];
+
+    const prevImg = new Image();
+    prevImg.src = modalImages[prevIndex];
+}
+
+// Обработчик клавиш
+function handleModalKeyPress(e) {
+    switch(e.key) {
+        case 'Escape':
+            closeImageModal();
+            break;
+        case 'ArrowLeft':
+            changeImage(-1);
+            break;
+        case 'ArrowRight':
+            changeImage(1);
+            break;
+    }
+}
+
+// Ленивая загрузка изображений
+document.addEventListener('DOMContentLoaded', function() {
+    const lazyImages = document.querySelectorAll('img.lazy');
+
+    if ('IntersectionObserver' in window) {
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    img.classList.remove('lazy');
+                    img.classList.add('loaded');
+                    imageObserver.unobserve(img);
+                }
+            });
+        });
+
+        lazyImages.forEach(img => imageObserver.observe(img));
+    } else {
+        // Fallback для старых браузеров
+        lazyImages.forEach(img => {
+            img.classList.remove('lazy');
+            img.classList.add('loaded');
+        });
+    }
+
+    // Обработка ошибок загрузки изображений
+    document.querySelectorAll('img').forEach(img => {
+        img.addEventListener('error', function() {
+            this.classList.add('error');
+            this.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23f0f0f0"/><text x="50" y="50" font-family="Arial" font-size="14" fill="%23999" text-anchor="middle" alignment-baseline="middle">Изображение не загружено</text></svg>';
+        });
+    });
+
+    // Форматирование даты
+    const postDate = document.querySelector('.post-date');
+    if (postDate) {
+        const dateStr = postDate.textContent.trim();
+        try {
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
+
+                let timeAgo = '';
+                if (diffMins < 60) {
+                    timeAgo = `${diffMins} мин. назад`;
+                } else if (diffHours < 24) {
+                    timeAgo = `${diffHours} ч. назад`;
+                } else if (diffDays < 7) {
+                    timeAgo = `${diffDays} дн. назад`;
+                } else {
+                    timeAgo = dateStr.slice(0, 16);
+                }
+
+                postDate.setAttribute('title', dateStr);
+                postDate.textContent = timeAgo;
+            }
+        } catch (e) {
+            // Игнорируем ошибки парсинга
+        }
+    }
+
+    // Форматирование дат комментариев
+    document.querySelectorAll('.comment-date').forEach(el => {
+        const dateStr = el.textContent.trim();
+        try {
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffHours = Math.floor(diffMs / 3600000);
+                const diffDays = Math.floor(diffMs / 86400000);
+
+                let timeAgo = '';
+                if (diffMins < 60) {
+                    timeAgo = `${diffMins} мин. назад`;
+                } else if (diffHours < 24) {
+                    timeAgo = `${diffHours} ч. назад`;
+                } else if (diffDays < 7) {
+                    timeAgo = `${diffDays} дн. назад`;
+                } else {
+                    timeAgo = dateStr.slice(0, 16);
+                }
+
+                el.setAttribute('title', dateStr);
+                el.textContent = timeAgo;
+            }
+        } catch (e) {
+            // Игнорируем ошибки парсинга
+        }
+    });
+
+    // Подтверждение для жалоб
+    document.querySelectorAll('.report-link, .report-link-small').forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (!confirm('Вы уверены, что хотите пожаловаться на этот контент?')) {
+                e.preventDefault();
+            }
+        });
+    });
+});
+
+// Закрытие по клику на фон
+document.getElementById('imageModal')?.addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeImageModal();
+    }
+});
+
 function showDeletePostModal() {
     document.getElementById('deletePostModal').style.display = 'flex';
 }
@@ -267,7 +1409,7 @@ function closeDeletePostModal() {
     document.getElementById('deletePostModal').style.display = 'none';
 }
 
-// Закрытие по клику вне модального окна
+// Закрытие по клику вне модального окна удаления
 window.onclick = function(event) {
     const modal = document.getElementById('deletePostModal');
     if (event.target == modal) {
