@@ -1,28 +1,32 @@
-# file_path: app.py
 from flask import Flask, render_template, redirect, url_for, flash, request, session, g, jsonify
 import sqlite3
 import hashlib
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import os
 import re
 from functools import wraps
 from werkzeug.utils import secure_filename
+import uuid
+import math
 import json
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here-change-in-production'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(32)
 app.config['DATABASE'] = 'instance/app.db'
 app.config['UPLOAD_FOLDER'] = 'static/uploads/posts'  # папка для медиа постов
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024   # 16 МБ максимум
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 МБ максимум
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+POSTS_PER_PAGE = 20
 
 # Создаём папку для загрузок, если её нет
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+
 def allowed_file(filename):
     """Проверка допустимых расширений файлов"""
     return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 # ========== ДЕКОРАТОРЫ ДЛЯ ПРОВЕРКИ ПРАВ ==========
@@ -109,7 +113,17 @@ def get_db():
 
 
 def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Создаёт безопасный хеш пароля"""
+    return generate_password_hash(password)
+
+
+def verify_password(stored_hash, password):
+    """Проверяет пароль, поддерживает старые sha256-хеши для обратной совместимости"""
+    if check_password_hash(stored_hash, password):
+        return True
+    # Обратная совместимость со старыми sha256-хешами
+    old_hash = hashlib.sha256(password.encode()).hexdigest()
+    return stored_hash == old_hash
 
 
 def validate_community_name(name):
@@ -142,6 +156,57 @@ def is_moderator_global(user_id):
     """Проверяет, является ли пользователь глобальным модератором или админом"""
     role = get_user_role(user_id)
     return role in ['admin', 'moderator']
+
+
+def get_user_votes(user_id):
+    """Возвращает словарь {post_id: vote_type} для пользователя"""
+    if not user_id:
+        return {}
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('SELECT post_id, vote_type FROM votes WHERE user_id = ?', (user_id,))
+    return {row['post_id']: row['vote_type'] for row in cursor.fetchall()}
+
+
+def get_user_bookmarks_set(user_id):
+    """Возвращает множество post_id из закладок пользователя"""
+    if not user_id:
+        return set()
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('SELECT post_id FROM bookmarks WHERE user_id = ?', (user_id,))
+    return {row['post_id'] for row in cursor.fetchall()}
+
+
+def hot_score(upvotes, downvotes, created_at_str):
+    """Алгоритм 'горячего': учитывает рейтинг и возраст поста (как Hacker News)"""
+    score = upvotes - downvotes
+    try:
+        created_at = datetime.strptime(str(created_at_str)[:19], '%Y-%m-%d %H:%M:%S')
+    except Exception:
+        return score
+    age_hours = max((datetime.utcnow() - created_at).total_seconds() / 3600, 0.1)
+    return score / math.pow(age_hours + 2, 1.5)
+
+
+def ensure_profile_columns():
+    """Ensure bio and avatar_color columns exist (runtime migration)."""
+    db = get_db()
+    cursor = db.cursor()
+    for col, default in [('bio', "''"), ('avatar_color', "'#e8402a'")]:
+        try:
+            cursor.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT {default}")
+            db.commit()
+        except Exception:
+            pass
+
+
+def update_user_karma(user_id, delta):
+    """Обновляет карму пользователя"""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('UPDATE users SET karma = karma + ? WHERE id = ?', (delta, user_id))
+    db.commit()
 
 
 def get_user_communities(user_id):
@@ -197,11 +262,6 @@ def log_moderation_action(moderator_id, action, target_type, target_id=None, det
         VALUES (?, ?, ?, ?, ?)
     ''', (moderator_id, action, target_type, target_id, details))
     db.commit()
-
-
-def allowed_file(filename):
-    """Проверяет, разрешен ли тип файла"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def check_and_create_tables():
@@ -464,6 +524,9 @@ def index():
 
     check_and_create_tables()
 
+    page = request.args.get('page', 1, type=int)
+    offset = (page - 1) * POSTS_PER_PAGE
+
     cursor.execute('''
         SELECT p.*, u.username, u.role as author_role, c.name as community_name, c.display_name as community_display_name,
                (p.upvotes - p.downvotes) as score
@@ -472,30 +535,19 @@ def index():
         LEFT JOIN communities c ON p.community_id = c.id
         WHERE p.is_deleted = 0
         ORDER BY p.created_at DESC
-        LIMIT 20
-    ''')
-
+        LIMIT ? OFFSET ?
+    ''', (POSTS_PER_PAGE, offset))
     posts = cursor.fetchall()
 
-    user_votes = {}
-    if 'user_id' in session:
-        cursor.execute('''
-            SELECT post_id, vote_type FROM votes 
-            WHERE user_id = ?
-        ''', (session['user_id'],))
-        votes = cursor.fetchall()
-        user_votes = {vote['post_id']: vote['vote_type'] for vote in votes}
+    cursor.execute('SELECT COUNT(*) FROM posts WHERE is_deleted = 0')
+    total_posts = cursor.fetchone()[0]
+    total_pages = math.ceil(total_posts / POSTS_PER_PAGE) if total_posts > 0 else 1
 
-    user_bookmarks = set()
-    if 'user_id' in session:
-        cursor.execute('''
-            SELECT post_id FROM bookmarks 
-            WHERE user_id = ?
-        ''', (session['user_id'],))
-        bookmarks = cursor.fetchall()
-        user_bookmarks = {bookmark['post_id'] for bookmark in bookmarks}
-
-    return render_template('index.html', posts=posts, user_votes=user_votes, user_bookmarks=user_bookmarks)
+    user_id = session.get('user_id')
+    return render_template('index.html', posts=posts,
+                           user_votes=get_user_votes(user_id),
+                           user_bookmarks=get_user_bookmarks_set(user_id),
+                           page=page, total_pages=total_pages)
 
 
 @app.route('/hot')
@@ -504,6 +556,8 @@ def hot_posts():
     db = get_db()
     cursor = db.cursor()
 
+    page = request.args.get('page', 1, type=int)
+
     cursor.execute('''
         SELECT p.*, u.username, u.role as author_role, c.name as community_name, c.display_name as community_display_name,
                (p.upvotes - p.downvotes) as score
@@ -511,35 +565,27 @@ def hot_posts():
         JOIN users u ON p.user_id = u.id
         LEFT JOIN communities c ON p.community_id = c.id
         WHERE p.is_deleted = 0
-        ORDER BY score DESC, p.created_at DESC
-        LIMIT 20
+        ORDER BY p.created_at DESC
+        LIMIT 500
     ''')
+    all_posts = cursor.fetchall()
 
-    posts = cursor.fetchall()
+    # Сортировка по алгоритму "горячего" (учитывает рейтинг и возраст)
+    sorted_posts = sorted(all_posts,
+                          key=lambda p: hot_score(p['upvotes'], p['downvotes'], p['created_at']),
+                          reverse=True)
 
-    user_votes = {}
-    if 'user_id' in session:
-        cursor.execute('''
-            SELECT post_id, vote_type FROM votes 
-            WHERE user_id = ?
-        ''', (session['user_id'],))
-        votes = cursor.fetchall()
-        user_votes = {vote['post_id']: vote['vote_type'] for vote in votes}
+    total_pages = math.ceil(len(sorted_posts) / POSTS_PER_PAGE) if sorted_posts else 1
+    offset = (page - 1) * POSTS_PER_PAGE
+    posts = sorted_posts[offset:offset + POSTS_PER_PAGE]
 
-    user_bookmarks = set()
-    if 'user_id' in session:
-        cursor.execute('''
-            SELECT post_id FROM bookmarks 
-            WHERE user_id = ?
-        ''', (session['user_id'],))
-        bookmarks = cursor.fetchall()
-        user_bookmarks = {bookmark['post_id'] for bookmark in bookmarks}
-
+    user_id = session.get('user_id')
     return render_template('index.html',
                            posts=posts,
-                           user_votes=user_votes,
-                           user_bookmarks=user_bookmarks,
-                           title='Горячее')
+                           user_votes=get_user_votes(user_id),
+                           user_bookmarks=get_user_bookmarks_set(user_id),
+                           title='Горячее',
+                           page=page, total_pages=total_pages)
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -558,8 +604,16 @@ def register():
             flash('Для регистрации необходимо принять Пользовательское соглашение', 'danger')
             return redirect(url_for('register'))
 
+        if len(username) < 3 or len(username) > 30:
+            flash('Имя пользователя должно быть от 3 до 30 символов', 'danger')
+            return redirect(url_for('register'))
+
         if password != confirm_password:
             flash('Пароли не совпадают', 'danger')
+            return redirect(url_for('register'))
+
+        if len(password) < 6:
+            flash('Пароль должен быть не менее 6 символов', 'danger')
             return redirect(url_for('register'))
 
         db = get_db()
@@ -571,7 +625,7 @@ def register():
             flash('Пользователь с таким именем или email уже существует', 'danger')
             return redirect(url_for('register'))
 
-        password_hash = hash_password(password)
+        password_hash = generate_password_hash(password)
         cursor.execute(
             'INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)',
             (username, email, password_hash, 'user')
@@ -614,15 +668,17 @@ def login():
             flash(f'Ваш аккаунт заблокирован.{reason}', 'danger')
             return render_template('register_login.html', mode='login')
 
-        if user['password_hash'] == hash_password(password):
+        if verify_password(user['password_hash'], password):
+            # Автообновление старых sha256-хешей до безопасного формата
+            if user['password_hash'] == hashlib.sha256(password.encode()).hexdigest():
+                db = get_db()
+                db.cursor().execute('UPDATE users SET password_hash = ? WHERE id = ?',
+                                    (hash_password(password), user['id']))
+                db.commit()
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['role'] = user['role']
-
-            role_names = {'admin': 'Администратор', 'moderator': 'Модератор', 'user': 'Пользователь'}
-            role_display = role_names.get(user['role'], 'Пользователь')
-
-            flash(f'Вход выполнен успешно! Добро пожаловать, {role_display}!', 'success')
+            flash(f'Добро пожаловать, {user["username"]}!', 'success')
             return redirect(url_for('index'))
         else:
             flash('Неверное имя пользователя или пароль', 'danger')
@@ -670,7 +726,10 @@ def create_post():
         post_type = request.form.get('post_type', 'text')
         community_id = request.form.get('community_id', '')
 
-        if not title or not content:
+        # Strip HTML to check if content is actually empty
+        import re as _re
+        content_text = _re.sub(r'<[^>]+>', '', content).strip()
+        if not title or not content_text:
             flash('Заполните все обязательные поля', 'danger')
             return redirect(url_for('create_post'))
 
@@ -681,29 +740,8 @@ def create_post():
                 flash('Указанное сообщество не существует', 'danger')
                 return redirect(url_for('create_post'))
 
-        # Обработка загруженных изображений
-        image_tags = []
-        if 'images' in request.files:
-            files = request.files.getlist('images')
-            for file in files:
-                if file and file.filename and allowed_file(file.filename):
-                    filename = secure_filename(file.filename)
-                    # Добавляем уникальный суффикс
-                    name, ext = os.path.splitext(filename)
-                    filename = f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
-                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(filepath)
-
-                    # Создаем Markdown тег для изображения
-                    image_url = url_for('static', filename=f'uploads/{filename}')
-                    image_tags.append(f'![{name}]({image_url})')
-
-                    print(f"Image uploaded: {filename}")
-
-        # Добавляем теги изображений в конец контента
-        if image_tags:
-            content += '\n\n' + '\n'.join(image_tags)
-
+        # Images are embedded by TinyMCE directly into content as <img> HTML.
+        # No separate file upload pipeline needed here.
         try:
             cursor.execute(
                 'INSERT INTO posts (title, content, user_id, post_type, community_id, is_deleted) VALUES (?, ?, ?, ?, ?, 0)',
@@ -721,111 +759,44 @@ def create_post():
             )
 
             flash('Пост создан успешно!', 'success')
-            return redirect(url_for('index'))
+            return redirect(url_for('post_detail', post_id=post_id))
         except Exception as e:
             db.rollback()
             flash(f'Ошибка при создании поста: {str(e)}', 'danger')
             return redirect(url_for('create_post'))
 
-    return render_template('create_post.html', communities=user_communities)
+    preselect_community = request.args.get('community', '')
+    return render_template('create_post.html', communities=user_communities, preselect_community=preselect_community)
 
-@app.route('/post/<int:post_id>')
-@not_banned
-def post_detail(post_id):
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute(''' 
-        SELECT p.*, u.username, u.role as author_role, c.name as community_name, c.display_name as community_display_name,
-               (p.upvotes - p.downvotes) as score
-        FROM posts p
-        JOIN users u ON p.user_id = u.id
-        LEFT JOIN communities c ON p.community_id = c.id
-        WHERE p.id = ?
-    ''', (post_id,))
-
-    post = cursor.fetchone()
-
-    if not post:
-        flash('Пост не найден', 'danger')
-        return redirect(url_for('index'))
-
-    cursor.execute('''
-        SELECT c.*, u.username, u.role as author_role
-        FROM comments c
-        JOIN users u ON c.user_id = u.id
-        WHERE c.post_id = ? AND c.is_deleted = 0
-        ORDER BY c.created_at ASC
-    ''', (post_id,))
-
-    comments = cursor.fetchall()
-
-    user_vote = None
-    can_moderate = False
-    is_author = False
-
-    if 'user_id' in session:
-        cursor.execute(
-            'SELECT vote_type FROM votes WHERE user_id = ? AND post_id = ?',
-            (session['user_id'], post_id)
-        )
-        vote = cursor.fetchone()
-        if vote:
-            user_vote = vote['vote_type']
-
-        can_moderate = can_moderate_post(session['user_id'], post_id)
-        is_author = post['user_id'] == session['user_id']
-
-    user_bookmarked = False
-    if 'user_id' in session:
-        cursor.execute(
-            'SELECT id FROM bookmarks WHERE user_id = ? AND post_id = ?',
-            (session['user_id'], post_id)
-        )
-        user_bookmarked = cursor.fetchone() is not None
-
-    return render_template('post_detail.html',
-                           post=post,
-                           comments=comments,
-                           user_vote=user_vote,
-                           user_bookmarked=user_bookmarked,
-                           can_moderate=can_moderate,
-                           is_author=is_author)
 
 @app.route('/upload_image', methods=['POST'])
-@login_required
 def upload_image():
-    """
-    Загрузка изображений для TinyMCE и форм постов.
-    Ожидаемый ответ: {"location": "https://.../static/uploads/posts/xxx.jpg"}
-    """
+    """Загрузка изображений для TinyMCE. Ответ: {"location": "/static/uploads/posts/xxx.jpg"}"""
+    # Return JSON errors for AJAX (TinyMCE) instead of redirecting
+    if 'user_id' not in session:
+        return jsonify({'error': 'Необходимо войти в систему'}), 401
+
     if 'file' not in request.files:
         return jsonify({'error': 'Файл не передан'}), 400
 
     file = request.files['file']
-
-    if file.filename == '':
+    if not file or not file.filename:
         return jsonify({'error': 'Файл не выбран'}), 400
 
-    if file and allowed_file(file.filename):
-        # Делаем имя файла уникальным
-        original_name = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{timestamp}_{original_name}"
-        
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        
-        # Абсолютный URL (можно использовать _external=True для внешнего доступа)
-        file_url = url_for('static', filename=f'uploads/posts/{filename}', _external=True)
-        
-        return jsonify({
-            'location': file_url,
-            'filename': filename,
-            'size': os.path.getsize(filepath)
-        }), 200
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Недопустимый формат. Поддерживаются: png, jpg, jpeg, gif, webp'}), 400
 
-    return jsonify({'error': 'Недопустимый формат файла. Поддерживаются: png, jpg, jpeg, gif, webp'}), 400
+    original_name = secure_filename(file.filename)
+    name, ext = os.path.splitext(original_name)
+    unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{name[:40]}{ext}"
+
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
+    file.save(filepath)
+
+    # Relative URL — works behind any proxy/domain
+    file_url = url_for('static', filename=f'uploads/posts/{unique_name}')
+    return jsonify({'location': file_url}), 200
+
 
 @app.route('/vote/<int:post_id>/<string:vote_type>')
 @login_required
@@ -921,6 +892,180 @@ def add_comment(post_id):
     return redirect(url_for('post_detail', post_id=post_id))
 
 
+@app.route('/post/<int:post_id>')
+@not_banned
+def post_detail(post_id):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute(''' 
+        SELECT p.*, u.username, u.role as author_role, c.name as community_name, c.display_name as community_display_name,
+               (p.upvotes - p.downvotes) as score
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        LEFT JOIN communities c ON p.community_id = c.id
+        WHERE p.id = ?
+    ''', (post_id,))
+
+    post = cursor.fetchone()
+
+    if not post:
+        flash('Пост не найден', 'danger')
+        return redirect(url_for('index'))
+
+    cursor.execute('''
+        SELECT c.*, u.username, u.role as author_role
+        FROM comments c
+        JOIN users u ON c.user_id = u.id
+        WHERE c.post_id = ? AND c.is_deleted = 0
+        ORDER BY c.created_at ASC
+    ''', (post_id,))
+
+    comments = cursor.fetchall()
+
+    user_vote = None
+    can_moderate = False
+    is_author = False
+
+    if 'user_id' in session:
+        cursor.execute(
+            'SELECT vote_type FROM votes WHERE user_id = ? AND post_id = ?',
+            (session['user_id'], post_id)
+        )
+        vote = cursor.fetchone()
+        if vote:
+            user_vote = vote['vote_type']
+
+        can_moderate = can_moderate_post(session['user_id'], post_id)
+        is_author = post['user_id'] == session['user_id']
+
+    user_bookmarked = False
+    if 'user_id' in session:
+        cursor.execute(
+            'SELECT id FROM bookmarks WHERE user_id = ? AND post_id = ?',
+            (session['user_id'], post_id)
+        )
+        user_bookmarked = cursor.fetchone() is not None
+
+    return render_template('post_detail.html',
+                           post=post,
+                           comments=comments,
+                           user_vote=user_vote,
+                           user_bookmarked=user_bookmarked,
+                           can_moderate=can_moderate,
+                           is_author=is_author)
+
+
+
+@app.route('/post/<int:post_id>/comment/<int:comment_id>/delete', methods=['POST'])
+@login_required
+@not_banned
+def delete_own_comment(post_id, comment_id):
+    """Удаление своего комментария"""
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute('SELECT user_id, is_deleted FROM comments WHERE id = ?', (comment_id,))
+    comment = cursor.fetchone()
+
+    if not comment or comment['is_deleted']:
+        flash('Комментарий не найден', 'danger')
+        return redirect(url_for('post_detail', post_id=post_id))
+
+    if comment['user_id'] != session['user_id'] and not is_moderator_global(session['user_id']):
+        flash('Нет прав на удаление этого комментария', 'danger')
+        return redirect(url_for('post_detail', post_id=post_id))
+
+    cursor.execute("""
+        UPDATE comments SET is_deleted = 1, deleted_by = ?, deleted_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (session['user_id'], comment_id))
+    cursor.execute('UPDATE posts SET comments_count = MAX(0, comments_count - 1) WHERE id = ?', (post_id,))
+    db.commit()
+    flash('Комментарий удалён', 'success')
+    return redirect(url_for('post_detail', post_id=post_id))
+
+# ========== УДАЛЕНИЕ СВОИХ ПОСТОВ ==========
+
+
+@app.route('/post/<int:post_id>/edit', methods=['GET', 'POST'])
+@login_required
+@not_banned
+def edit_post(post_id):
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('SELECT * FROM posts WHERE id = ? AND is_deleted = 0', (post_id,))
+    post = cursor.fetchone()
+    if not post:
+        flash('Пост не найден', 'danger')
+        return redirect(url_for('index'))
+    if post['user_id'] != session['user_id'] and not is_moderator_global(session['user_id']):
+        flash('Нет прав для редактирования', 'danger')
+        return redirect(url_for('post_detail', post_id=post_id))
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        content = request.form.get('content', '').strip()
+        import re as _re
+        content_text = _re.sub(r'<[^>]+>', '', content).strip()
+        if not title or not content_text:
+            flash('Заполните все поля', 'danger')
+            return redirect(url_for('edit_post', post_id=post_id))
+        cursor.execute('UPDATE posts SET title = ?, content = ? WHERE id = ?',
+                       (title, content, post_id))
+        db.commit()
+        flash('Пост обновлён', 'success')
+        return redirect(url_for('post_detail', post_id=post_id))
+    return render_template('edit_post.html', post=post)
+
+@app.route('/post/<int:post_id>/delete', methods=['POST'])
+@login_required
+@not_banned
+def delete_own_post(post_id):
+    """Удаление своего поста владельцем"""
+    db = get_db()
+    cursor = db.cursor()
+
+    # Проверяем, существует ли пост и принадлежит ли он пользователю
+    cursor.execute('''
+        SELECT p.*, u.username 
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.id = ? AND p.is_deleted = 0
+    ''', (post_id,))
+
+    post = cursor.fetchone()
+
+    if not post:
+        flash('Пост не найден', 'danger')
+        return redirect(url_for('index'))
+
+    # Проверяем права на удаление (владелец поста или админ)
+    if post['user_id'] != session['user_id'] and not is_admin(session['user_id']):
+        flash('У вас нет прав на удаление этого поста', 'danger')
+        return redirect(url_for('post_detail', post_id=post_id))
+
+    # Помечаем пост как удаленный
+    cursor.execute('''
+        UPDATE posts 
+        SET is_deleted = 1, deleted_by = ?, deleted_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    ''', (session['user_id'], post_id))
+
+    # Логируем действие
+    log_moderation_action(
+        session['user_id'],
+        'delete_own_post',
+        'post',
+        post_id,
+        f'Deleted own post: {post["title"][:50]}'
+    )
+
+    db.commit()
+
+    flash('Ваш пост успешно удален', 'success')
+    return redirect(url_for('index'))
+
+
 # ========== СООБЩЕСТВА ==========
 
 @app.route('/create_community', methods=['GET', 'POST'])
@@ -1001,6 +1146,7 @@ def community_detail(community_name):
         return redirect(url_for('index'))
 
     is_subscribed = False
+    is_owner = False
 
     if 'user_id' in session:
         cursor.execute(
@@ -1008,50 +1154,47 @@ def community_detail(community_name):
             (session['user_id'], community['id'])
         )
         is_subscribed = cursor.fetchone() is not None
+        is_owner = community['owner_id'] == session['user_id']
 
-    cursor.execute('''
+    sort = request.args.get('sort', 'new')
+    page = request.args.get('page', 1, type=int)
+    offset = (page - 1) * POSTS_PER_PAGE
+
+    order_clause = 'p.created_at DESC' if sort != 'hot' else '(p.upvotes - p.downvotes) DESC, p.created_at DESC'
+
+    cursor.execute(f'''
         SELECT p.*, u.username, u.role as author_role,
                (p.upvotes - p.downvotes) as score
         FROM posts p
         JOIN users u ON p.user_id = u.id
         WHERE p.community_id = ? AND p.is_deleted = 0
-        ORDER BY p.created_at DESC
-        LIMIT 20
-    ''', (community['id'],))
+        ORDER BY {order_clause}
+        LIMIT ? OFFSET ?
+    ''', (community['id'], POSTS_PER_PAGE, offset))
 
     posts = cursor.fetchall()
 
-    user_votes = {}
-    if 'user_id' in session:
-        cursor.execute('''
-            SELECT post_id, vote_type FROM votes 
-            WHERE user_id = ?
-        ''', (session['user_id'],))
-        votes = cursor.fetchall()
-        user_votes = {vote['post_id']: vote['vote_type'] for vote in votes}
+    cursor.execute('SELECT COUNT(*) FROM posts WHERE community_id = ? AND is_deleted = 0',
+                   (community['id'],))
+    total_posts = cursor.fetchone()[0]
+    total_pages = math.ceil(total_posts / POSTS_PER_PAGE) if total_posts > 0 else 1
 
-    user_bookmarks = set()
-    if 'user_id' in session:
-        cursor.execute('''
-            SELECT post_id FROM bookmarks 
-            WHERE user_id = ?
-        ''', (session['user_id'],))
-        bookmarks = cursor.fetchall()
-        user_bookmarks = {bookmark['post_id'] for bookmark in bookmarks}
-
-    cursor.execute(
-        'SELECT COUNT(*) as count FROM community_subscriptions WHERE community_id = ?',
-        (community['id'],)
-    )
+    cursor.execute('SELECT COUNT(*) as count FROM community_subscriptions WHERE community_id = ?',
+                   (community['id'],))
     subscribers_count = cursor.fetchone()['count']
 
+    user_id = session.get('user_id')
     return render_template('community_detail.html',
                            community=community,
                            posts=posts,
-                           user_votes=user_votes,
-                           user_bookmarks=user_bookmarks,
+                           user_votes=get_user_votes(user_id),
+                           user_bookmarks=get_user_bookmarks_set(user_id),
                            is_subscribed=is_subscribed,
-                           subscribers_count=subscribers_count)
+                           is_owner=is_owner,
+                           subscribers_count=subscribers_count,
+                           sort=sort,
+                           page=page,
+                           total_pages=total_pages)
 
 
 @app.route('/r/<string:community_name>/subscribe')
@@ -1150,6 +1293,64 @@ def my_communities():
     return render_template('my_communities.html', communities=communities)
 
 
+# ========== УДАЛЕНИЕ СООБЩЕСТВ ==========
+
+@app.route('/community/<string:community_name>/delete', methods=['POST'])
+@login_required
+@not_banned
+def delete_own_community(community_name):
+    """Удаление своего сообщества владельцем"""
+    db = get_db()
+    cursor = db.cursor()
+
+    # Проверяем, существует ли сообщество и принадлежит ли оно пользователю
+    cursor.execute('''
+        SELECT c.*, u.username 
+        FROM communities c
+        JOIN users u ON c.owner_id = u.id
+        WHERE c.name = ?
+    ''', (community_name,))
+
+    community = cursor.fetchone()
+
+    if not community:
+        flash('Сообщество не найдено', 'danger')
+        return redirect(url_for('communities_list'))
+
+    # Проверяем права на удаление (владелец сообщества или админ)
+    if community['owner_id'] != session['user_id'] and not is_admin(session['user_id']):
+        flash('У вас нет прав на удаление этого сообщества', 'danger')
+        return redirect(url_for('community_detail', community_name=community_name))
+
+    # Проверяем, есть ли посты в сообществе
+    cursor.execute('SELECT COUNT(*) as count FROM posts WHERE community_id = ? AND is_deleted = 0', (community['id'],))
+    posts_count = cursor.fetchone()['count']
+
+    if posts_count > 0:
+        flash('Нельзя удалить сообщество, в котором есть посты. Сначала удалите все посты.', 'danger')
+        return redirect(url_for('community_detail', community_name=community_name))
+
+    # Удаляем подписки на сообщество
+    cursor.execute('DELETE FROM community_subscriptions WHERE community_id = ?', (community['id'],))
+
+    # Удаляем само сообщество
+    cursor.execute('DELETE FROM communities WHERE id = ?', (community['id'],))
+
+    # Логируем действие
+    log_moderation_action(
+        session['user_id'],
+        'delete_own_community',
+        'community',
+        community['id'],
+        f'Deleted own community: {community["name"]}'
+    )
+
+    db.commit()
+
+    flash(f'Сообщество r/{community_name} успешно удалено', 'success')
+    return redirect(url_for('communities_list'))
+
+
 # ========== ЗАКЛАДКИ ==========
 
 @app.route('/bookmarks')
@@ -1172,19 +1373,10 @@ def bookmarks():
 
     bookmarked_posts = cursor.fetchall()
 
-    user_votes = {}
-    cursor.execute('''
-        SELECT post_id, vote_type FROM votes 
-        WHERE user_id = ?
-    ''', (session['user_id'],))
-    votes = cursor.fetchall()
-    user_votes = {vote['post_id']: vote['vote_type'] for vote in votes}
-
     user_bookmarks = {post['id'] for post in bookmarked_posts}
-
     return render_template('bookmarks.html',
                            posts=bookmarked_posts,
-                           user_votes=user_votes,
+                           user_votes=get_user_votes(session['user_id']),
                            user_bookmarks=user_bookmarks)
 
 
@@ -1228,6 +1420,151 @@ def toggle_bookmark(post_id):
     return redirect(request.referrer or url_for('index'))
 
 
+
+# ========== ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ ==========
+
+@app.route('/u/<string:username>')
+@not_banned
+def user_profile(username):
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute('SELECT id, username, role, karma, created_at, is_banned, bio, avatar_color FROM users WHERE username = ?',
+                   (username,))
+    profile_user = cursor.fetchone()
+
+    if not profile_user:
+        flash('Пользователь не найден', 'danger')
+        return redirect(url_for('index'))
+
+    page = request.args.get('page', 1, type=int)
+    tab = request.args.get('tab', 'posts')
+    offset = (page - 1) * POSTS_PER_PAGE
+
+    if tab == 'comments':
+        cursor.execute("""
+            SELECT c.*, p.title as post_title, p.id as post_id
+            FROM comments c
+            JOIN posts p ON c.post_id = p.id
+            WHERE c.user_id = ? AND c.is_deleted = 0
+            ORDER BY c.created_at DESC
+            LIMIT ? OFFSET ?
+        """, (profile_user['id'], POSTS_PER_PAGE, offset))
+        items = cursor.fetchall()
+        cursor.execute('SELECT COUNT(*) FROM comments WHERE user_id = ? AND is_deleted = 0',
+                       (profile_user['id'],))
+        total_items = cursor.fetchone()[0]
+    else:
+        cursor.execute("""
+            SELECT p.*, u.username, u.role as author_role,
+                   c.name as community_name, c.display_name as community_display_name,
+                   (p.upvotes - p.downvotes) as score
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            LEFT JOIN communities c ON p.community_id = c.id
+            WHERE p.user_id = ? AND p.is_deleted = 0
+            ORDER BY p.created_at DESC
+            LIMIT ? OFFSET ?
+        """, (profile_user['id'], POSTS_PER_PAGE, offset))
+        items = cursor.fetchall()
+        cursor.execute('SELECT COUNT(*) FROM posts WHERE user_id = ? AND is_deleted = 0',
+                       (profile_user['id'],))
+        total_items = cursor.fetchone()[0]
+
+    total_pages = math.ceil(total_items / POSTS_PER_PAGE) if total_items > 0 else 1
+
+    cursor.execute('SELECT COUNT(*) FROM posts WHERE user_id = ? AND is_deleted = 0',
+                   (profile_user['id'],))
+    posts_count = cursor.fetchone()[0]
+
+    cursor.execute('SELECT COUNT(*) FROM comments WHERE user_id = ? AND is_deleted = 0',
+                   (profile_user['id'],))
+    comments_count = cursor.fetchone()[0]
+
+    user_id = session.get('user_id')
+    return render_template('user_profile.html',
+                           profile_user=profile_user,
+                           items=items,
+                           tab=tab,
+                           posts_count=posts_count,
+                           comments_count=comments_count,
+                           page=page,
+                           total_pages=total_pages,
+                           is_own_profile=(user_id == profile_user['id']),
+                           user_votes=get_user_votes(user_id) if tab == 'posts' else {},
+                           user_bookmarks=get_user_bookmarks_set(user_id) if tab == 'posts' else set())
+
+
+
+# ========== РЕДАКТИРОВАНИЕ ПРОФИЛЯ ==========
+
+@app.route('/settings/profile', methods=['GET', 'POST'])
+@login_required
+@not_banned
+def edit_profile():
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute('SELECT id, username, email, bio, avatar_color, karma, created_at FROM users WHERE id = ?',
+                   (session['user_id'],))
+    user = cursor.fetchone()
+
+    if not user:
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        action = request.form.get('action', 'profile')
+
+        if action == 'profile':
+            bio = request.form.get('bio', '').strip()[:300]
+            avatar_color = request.form.get('avatar_color', '#e8402a')
+            # Validate hex color
+            import re as _re
+            if not _re.match(r'^#[0-9a-fA-F]{6}$', avatar_color):
+                avatar_color = '#e8402a'
+            cursor.execute('UPDATE users SET bio = ?, avatar_color = ? WHERE id = ?',
+                           (bio, avatar_color, session['user_id']))
+            db.commit()
+            flash('Профиль обновлён', 'success')
+
+        elif action == 'email':
+            new_email = request.form.get('email', '').strip()
+            if not new_email or '@' not in new_email:
+                flash('Введите корректный email', 'danger')
+            else:
+                cursor.execute('SELECT id FROM users WHERE email = ? AND id != ?',
+                               (new_email, session['user_id']))
+                if cursor.fetchone():
+                    flash('Этот email уже используется', 'danger')
+                else:
+                    cursor.execute('UPDATE users SET email = ? WHERE id = ?',
+                                   (new_email, session['user_id']))
+                    db.commit()
+                    flash('Email обновлён', 'success')
+
+        elif action == 'password':
+            current_pw = request.form.get('current_password', '')
+            new_pw = request.form.get('new_password', '')
+            confirm_pw = request.form.get('confirm_password', '')
+
+            cursor.execute('SELECT password_hash FROM users WHERE id = ?', (session['user_id'],))
+            row = cursor.fetchone()
+            if not verify_password(row['password_hash'], current_pw):
+                flash('Неверный текущий пароль', 'danger')
+            elif len(new_pw) < 6:
+                flash('Новый пароль должен быть не менее 6 символов', 'danger')
+            elif new_pw != confirm_pw:
+                flash('Пароли не совпадают', 'danger')
+            else:
+                cursor.execute('UPDATE users SET password_hash = ? WHERE id = ?',
+                               (hash_password(new_pw), session['user_id']))
+                db.commit()
+                flash('Пароль изменён', 'success')
+
+        return redirect(url_for('edit_profile'))
+
+    return render_template('edit_profile.html', user=user)
+
 # ========== ПОИСК ==========
 
 @app.route('/search')
@@ -1243,6 +1580,9 @@ def search_posts():
 
     search_pattern = f'%{query}%'
 
+    page = request.args.get('page', 1, type=int)
+    offset = (page - 1) * POSTS_PER_PAGE
+
     cursor.execute('''
         SELECT p.*, u.username, u.role as author_role, c.name as community_name, c.display_name as community_display_name,
                (p.upvotes - p.downvotes) as score
@@ -1251,28 +1591,22 @@ def search_posts():
         LEFT JOIN communities c ON p.community_id = c.id
         WHERE (p.title LIKE ? OR p.content LIKE ?) AND p.is_deleted = 0
         ORDER BY p.created_at DESC
-        LIMIT 50
-    ''', (search_pattern, search_pattern))
-
+        LIMIT ? OFFSET ?
+    ''', (search_pattern, search_pattern, POSTS_PER_PAGE, offset))
     posts = cursor.fetchall()
 
-    user_votes = {}
-    if 'user_id' in session:
-        cursor.execute('SELECT post_id, vote_type FROM votes WHERE user_id = ?', (session['user_id'],))
-        votes = cursor.fetchall()
-        user_votes = {vote['post_id']: vote['vote_type'] for vote in votes}
+    cursor.execute('SELECT COUNT(*) FROM posts WHERE (title LIKE ? OR content LIKE ?) AND is_deleted = 0',
+                   (search_pattern, search_pattern))
+    total_posts = cursor.fetchone()[0]
+    total_pages = math.ceil(total_posts / POSTS_PER_PAGE) if total_posts > 0 else 1
 
-    user_bookmarks = set()
-    if 'user_id' in session:
-        cursor.execute('SELECT post_id FROM bookmarks WHERE user_id = ?', (session['user_id'],))
-        bookmarks = cursor.fetchall()
-        user_bookmarks = {bookmark['post_id'] for bookmark in bookmarks}
-
+    user_id = session.get('user_id')
     return render_template('search_results.html',
                            posts=posts,
-                           user_votes=user_votes,
-                           user_bookmarks=user_bookmarks,
-                           search_query=query)
+                           user_votes=get_user_votes(user_id),
+                           user_bookmarks=get_user_bookmarks_set(user_id),
+                           search_query=query,
+                           page=page, total_pages=total_pages)
 
 
 @app.route('/search/communities')
@@ -1302,7 +1636,6 @@ def search_communities():
         cursor.execute('SELECT community_id FROM community_subscriptions WHERE user_id = ?', (session['user_id'],))
         subscriptions = cursor.fetchall()
         user_subscriptions = {sub['community_id'] for sub in subscriptions}
-
     return render_template('communities_list.html',
                            communities=communities,
                            user_subscriptions=user_subscriptions,
@@ -1429,7 +1762,8 @@ def moderation_reports():
 
     reports = cursor.fetchall()
 
-    return render_template('moderation_reports.html', reports=reports)
+    pending_count = len([r for r in reports if r['status'] == 'pending']) if reports else 0
+    return render_template('moderation_reports.html', reports=reports, pending_count=pending_count)
 
 
 @app.route('/moderation/report/<int:report_id>/<string:action>', methods=['POST'])
@@ -1839,66 +2173,6 @@ def admin_logs():
     return render_template('admin_logs.html', logs=logs)
 
 
-# ========== ОТЛАДОЧНЫЕ МАРШРУТЫ ==========
-
-@app.route('/debug/db')
-def debug_database():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    db = get_db()
-    cursor = db.cursor()
-
-    result = []
-
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    tables = cursor.fetchall()
-    result.append(f"Tables in database: {[t[0] for t in tables]}")
-
-    cursor.execute("SELECT COUNT(*) FROM posts")
-    post_count = cursor.fetchone()[0]
-    result.append(f"Total posts in database: {post_count}")
-
-    cursor.execute('''
-        SELECT p.id, p.title, p.user_id, u.username, p.created_at, p.is_deleted
-        FROM posts p 
-        LEFT JOIN users u ON p.user_id = u.id 
-        ORDER BY p.created_at DESC
-        LIMIT 10
-    ''')
-    posts = cursor.fetchall()
-    result.append("\nRecent posts:")
-    for post in posts:
-        deleted = " [DELETED]" if post[5] else ""
-        result.append(
-            f"ID: {post[0]}, Title: '{post[1]}', User: {post[3]}, Deleted: {post[5]}, Created: {post[4]}{deleted}")
-
-    cursor.execute("SELECT id, username, role, is_banned FROM users")
-    users = cursor.fetchall()
-    result.append(f"\nUsers:")
-    for user in users:
-        banned = " [BANNED]" if user[3] else ""
-        result.append(f"ID: {user[0]}, Username: {user[1]}, Role: {user[2]}{banned}")
-
-    cursor.execute("SELECT COUNT(*) FROM reports WHERE status='pending'")
-    pending_reports = cursor.fetchone()[0]
-    result.append(f"\nPending reports: {pending_reports}")
-
-    return '<br>'.join(result)
-
-
-@app.route('/debug/check')
-def debug_check():
-    try:
-        db = get_db()
-        cursor = db.cursor()
-
-        cursor.execute("SELECT 1")
-        test = cursor.fetchone()
-
-        return f"Database connection OK. Test result: {test[0]}"
-    except Exception as e:
-        return f"Database connection ERROR: {str(e)}"
 
 @app.route('/faq')
 @not_banned
@@ -1918,10 +2192,7 @@ if __name__ == '__main__':
         init_db.update_database()
         print("=== DATABASE UPDATED ===")
 
-    print("\n=== STARTING APPLICATION ===")
-    print("Debug routes available:")
-    print("  /debug/db - Show database state")
-    print("  /debug/check - Check database connection")
-    print("=" * 30)
 
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    with app.app_context():
+        ensure_profile_columns()
+    app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true', port=5000, host='0.0.0.0')

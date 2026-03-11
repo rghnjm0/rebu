@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Настройки профиля — Rebu{% endblock %}
+
+{% block content %}
+<div style="max-width:600px">
+  <div class="page-hdr">
+    <h1><i class="fas fa-user-pen" style="color:var(--accent)"></i> Настройки профиля</h1>
+    <p>Управляйте своим аккаунтом</p>
+  </div>
+
+  <!-- PROFILE INFO -->
+  <div class="card">
+    <div class="card-title"><i class="fas fa-user"></i> Профиль</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="profile">
+
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+        <div class="user-ava xl" id="avatarPreview"
+             style="background:{{ user.avatar_color or '#e8402a' }};cursor:default">
+          {{ user.username | first | upper }}
+        </div>
+        <div>
+          <div class="form-label" style="margin-bottom:8px">Цвет аватара</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap" id="colorPicker">
+            {% for color in ['#e8402a','#2563eb','#16a34a','#d97706','#9333ea','#0891b2','#db2777','#64748b'] %}
+            <button type="button" class="color-swatch {% if (user.avatar_color or '#e8402a') == color %}selected{% endif %}"
+                    style="background:{{ color }}" onclick="pickColor('{{ color }}')"></button>
+            {% endfor %}
+          </div>
+          <input type="hidden" name="avatar_color" id="avatarColorInput" value="{{ user.avatar_color or '#e8402a' }}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Имя пользователя</label>
+        <input type="text" class="form-input" value="{{ user.username }}" disabled
+               style="background:var(--bg-input);color:var(--text-3)">
+        <div class="form-hint">Имя пользователя изменить нельзя</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">О себе</label>
+        <textarea name="bio" class="form-textarea" placeholder="Расскажите о себе (до 300 символов)"
+                  maxlength="300" id="bioField">{{ user.bio or '' }}</textarea>
+        <div class="form-hint"><span id="bioCount">{{ (user.bio or '') | length }}</span> / 300</div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-floppy-disk"></i> Сохранить</button>
+        <a href="{{ url_for('user_profile', username=user.username) }}" class="btn btn-ghost">Отмена</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- EMAIL -->
+  <div class="card" style="margin-top:14px">
+    <div class="card-title"><i class="fas fa-envelope"></i> Email</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="email">
+      <div class="form-group">
+        <label class="form-label">Текущий email</label>
+        <input type="text" class="form-input" value="{{ user.email }}" disabled
+               style="background:var(--bg-input);color:var(--text-3)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Новый email</label>
+        <input type="email" name="email" class="form-input" placeholder="new@example.com" required>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-floppy-disk"></i> Изменить email</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- PASSWORD -->
+  <div class="card" style="margin-top:14px">
+    <div class="card-title"><i class="fas fa-lock"></i> Пароль</div>
+    <form method="POST">
+      <input type="hidden" name="action" value="password">
+      <div class="form-group">
+        <label class="form-label">Текущий пароль <span class="req">*</span></label>
+        <input type="password" name="current_password" class="form-input" required autocomplete="current-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Новый пароль <span class="req">*</span></label>
+        <input type="password" name="new_password" class="form-input" required autocomplete="new-password"
+               placeholder="Минимум 6 символов">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Подтвердите пароль <span class="req">*</span></label>
+        <input type="password" name="confirm_password" class="form-input" required autocomplete="new-password">
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-key"></i> Изменить пароль</button>
+      </div>
+    </form>
+  </div>
+
+  <div style="text-align:center;margin-top:20px">
+    <a href="{{ url_for('user_profile', username=user.username) }}" class="text-muted" style="font-size:13px">
+      <i class="fas fa-arrow-left"></i> Вернуться к профилю
+    </a>
+  </div>
+</div>
+
+<style>
+.color-swatch{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:.15s}
+.color-swatch:hover{transform:scale(1.15)}
+.color-swatch.selected{border-color:var(--text);transform:scale(1.15)}
+</style>
+
+{% block scripts %}
+<script>
+function pickColor(color) {
+  document.getElementById('avatarColorInput').value = color;
+  document.getElementById('avatarPreview').style.background = color;
+  document.querySelectorAll('.color-swatch').forEach(function(s) {
+    s.classList.toggle('selected', s.style.background === color ||
+      s.style.backgroundColor === color ||
+      s.getAttribute('onclick').includes(color));
+  });
+}
+document.getElementById('bioField').addEventListener('input', function() {
+  document.getElementById('bioCount').textContent = this.value.length;
+});
+</script>
+{% endblock %}
+{% endblock %}

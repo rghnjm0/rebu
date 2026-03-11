@@ -1,136 +1,141 @@
 {% extends "base.html" %}
-
-{% block title %}r/{{ community.name }} - {{ community.display_name }}{% endblock %}
+{% block title %}r/{{ community.name }} — Rebu{% endblock %}
 
 {% block content %}
-<div class="community-detail">
-    <div class="community-header">
-        <div class="community-info">
-            <h1>r/{{ community.name }}</h1>
-            <h2>{{ community.display_name }}</h2>
+<div class="feed-wrap">
 
-            {% if community.description %}
-            <p class="community-description">{{ community.description }}</p>
-            {% endif %}
-
-            <div class="community-meta">
-                <span class="meta-item">
-                    <strong>{{ subscribers_count }}</strong> подписчиков
-                </span>
-                <span class="meta-item">
-                    Создатель: <a href="#">{{ community.owner_name }}</a>
-                </span>
-                <span class="meta-item">
-                    Создано: {{ community.created_at }}
-                </span>
-                {% if community.is_public %}
-                <span class="meta-item public">Публичное</span>
-                {% else %}
-                <span class="meta-item private">Приватное</span>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="community-actions">
-            {% if session.user_id %}
-                {% if is_subscribed %}
-                    <a href="{{ url_for('toggle_subscription', community_name=community.name) }}"
-                       class="btn btn-secondary">
-                        Отписаться
-                    </a>
-                {% else %}
-                    <a href="{{ url_for('toggle_subscription', community_name=community.name) }}"
-                       class="btn btn-primary">
-                        Подписаться
-                    </a>
-                {% endif %}
-
-                <a href="{{ url_for('create_post') }}" class="btn btn-success">
-                    Создать пост
-                </a>
-
-                <!-- НОВОЕ: Кнопка управления модераторами -->
-                {% if community.owner_id == session.user_id or (is_mod and mod_permissions.can_manage_moderators) %}
-                <a href="{{ url_for('manage_moderators', community_id=community.id) }}"
-                   class="btn btn-outline">
-                    <i class="fas fa-user-shield"></i> Модераторы
-                </a>
-                {% endif %}
-            {% else %}
-                <a href="{{ url_for('login') }}" class="btn btn-primary">
-                    Войдите, чтобы подписаться
-                </a>
-            {% endif %}
-        </div>
+<div class="comm-banner">
+  <div class="comm-banner-ava">{{ community.name | first | upper }}</div>
+  <div class="comm-banner-info">
+    <div class="comm-banner-name">
+      r/{{ community.name }}
+      {% if not community.is_public %}
+      <i class="fas fa-lock" style="font-size:13px;color:var(--text-3)" title="Приватное"></i>
+      {% endif %}
     </div>
-
-    <div class="community-posts">
-        <h3>Последние посты</h3>
-
-        {% if posts %}
-            {% for post in posts %}
-            <div class="post">
-                <div class="vote">
-                    <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
-                       class="vote-btn up {% if post.id in user_votes and user_votes[post.id] == 'up' %}voted{% endif %}">
-                        ↑
-                    </a>
-                    <span class="score">{{ post.upvotes - post.downvotes }}</span>
-                    <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
-                       class="vote-btn down {% if post.id in user_votes and user_votes[post.id] == 'down' %}voted{% endif %}">
-                        ↓
-                    </a>
-                </div>
-                <div class="post-content">
-                    <h3><a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a></h3>
-                    <div class="post-meta">
-                        <span>от {{ post.username }}</span>
-                        <span>•</span>
-                        <span>{{ post.created_at }}</span>
-                        <span>•</span>
-                        <span>{{ post.upvotes }} ↑ / {{ post.downvotes }} ↓</span>
-                        <span>•</span>
-                        <a href="{{ url_for('post_detail', post_id=post.id) }}">комментарии</a>
-                        {% if session.user_id %}
-                        <span>•</span>
-                        <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}" class="bookmark-link" title="Добавить в закладки">
-                            {% if is_bookmarked(post.id) %}★{% else %}☆{% endif %}
-                        </a>
-                        <!-- НОВОЕ: Кнопка жалобы -->
-                        <span>•</span>
-                        <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}"
-                           class="report-link" title="Пожаловаться">
-                            ⚑
-                        </a>
-                        {% endif %}
-                    </div>
-                    {% if post.post_type == 'text' %}
-                        <p class="post-text">{{ post.content[:200] }}{% if post.content|length > 200 %}...{% endif %}</p>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        {% else %}
-            <div class="empty-state">
-                <p>В этом сообществе пока нет постов.</p>
-                {% if session.user_id %}
-                    <p>Будьте первым, кто создаст пост!</p>
-                    <a href="{{ url_for('create_post') }}" class="btn btn-primary">Создать пост</a>
-                {% endif %}
-            </div>
-        {% endif %}
+    <div class="comm-banner-meta">
+      {{ community.display_name }} &nbsp;·&nbsp;
+      <strong>{{ subscribers_count }}</strong> подписчиков &nbsp;·&nbsp;
+      Создатель: <a href="{{ url_for('user_profile', username=community.owner_name) }}"
+                    style="color:var(--accent)">{{ community.owner_name }}</a>
     </div>
+    {% if community.description %}
+    <div style="font-size:13px;color:var(--text-2);margin-top:5px">{{ community.description }}</div>
+    {% endif %}
+  </div>
+  <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:flex-start">
+    {% if session.user_id %}
+      {% if is_subscribed %}
+      <a href="{{ url_for('toggle_subscription', community_name=community.name) }}" class="btn btn-ghost btn-sm">
+        <i class="fas fa-user-minus"></i> Отписаться
+      </a>
+      <a href="{{ url_for('create_post') }}?community={{ community.id }}" class="btn btn-primary btn-sm">
+        <i class="fas fa-plus"></i> Пост
+      </a>
+      {% else %}
+      <a href="{{ url_for('toggle_subscription', community_name=community.name) }}" class="btn btn-primary btn-sm">
+        <i class="fas fa-user-plus"></i> Подписаться
+      </a>
+      {% endif %}
+    {% endif %}
+  </div>
 </div>
 
-<style>
-.report-link {
-    color: var(--text-muted);
-    text-decoration: none;
-    transition: var(--transition);
-}
+<div class="comm-sort-tabs">
+  <a href="{{ url_for('community_detail', community_name=community.name, sort='new') }}"
+     class="comm-sort-tab {% if not sort or sort == 'new' %}active{% endif %}">
+    <i class="fas fa-clock"></i> Новые
+  </a>
+  <a href="{{ url_for('community_detail', community_name=community.name, sort='hot') }}"
+     class="comm-sort-tab {% if sort == 'hot' %}active{% endif %}">
+    <i class="fas fa-fire"></i> Горячие
+  </a>
+</div>
 
-.report-link:hover {
-    color: var(--danger-color);
-}
-</style>
+{% if posts %}
+  {% for post in posts %}
+  <article class="post-card">
+    <div class="post-meta">
+      <a href="{{ url_for('user_profile', username=post.username) }}" class="post-author-link">
+        {{ post.username }}
+        {% if post.author_role == 'admin' %}<i class="fas fa-crown role-crown"></i>
+        {% elif post.author_role == 'moderator' %}<i class="fas fa-shield-halved role-shield"></i>{% endif %}
+      </a>
+      <span class="post-time">{{ post.created_at[:16] }}</span>
+    </div>
+    <h2 class="post-title">
+      <a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a>
+    </h2>
+    {% if post.content %}
+    <div class="post-excerpt">{{ post.content | striptags | truncate(240, True, '…') }}</div>
+    {% endif %}
+    <div class="post-actions">
+      {% set score = post.upvotes - post.downvotes %}
+      <span class="score-chip {% if score > 0 %}pos{% elif score < 0 %}neg{% endif %}">
+        <i class="fas fa-arrow-up"></i> {{ score }}
+      </span>
+      <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
+         class="act-btn up {% if post.id in user_votes and user_votes[post.id] == 'up' %}on{% endif %}">
+        <i class="fas fa-arrow-up"></i> <span>{{ post.upvotes }}</span>
+      </a>
+      <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
+         class="act-btn down {% if post.id in user_votes and user_votes[post.id] == 'down' %}on{% endif %}">
+        <i class="fas fa-arrow-down"></i>
+      </a>
+      <a href="{{ url_for('post_detail', post_id=post.id) }}" class="act-btn">
+        <i class="fas fa-comment"></i> {{ post.comments_count }}
+      </a>
+      {% if session.user_id %}
+      <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}"
+         class="act-btn bm {% if post.id in user_bookmarks %}on{% endif %}">
+        <i class="fas fa-bookmark"></i>
+      </a>
+      {% if session.user_id != post.user_id %}
+      <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}" class="act-btn rep">
+        <i class="fas fa-flag"></i>
+      </a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% if page > 1 %}
+    <a href="{{ url_for('community_detail', community_name=community.name, sort=sort, page=page-1) }}" class="pg-btn">
+      <i class="fas fa-chevron-left"></i> Назад
+    </a>
+    {% endif %}
+    <span class="pg-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="{{ url_for('community_detail', community_name=community.name, sort=sort, page=page+1) }}" class="pg-btn">
+      Далее <i class="fas fa-chevron-right"></i>
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-state-icon"><i class="fas fa-newspaper"></i></div>
+  <h3>Постов пока нет</h3>
+  <p>Станьте первым автором в этом сообществе</p>
+  {% if session.user_id %}
+  <div class="empty-state-actions">
+    {% if not is_subscribed %}
+    <a href="{{ url_for('toggle_subscription', community_name=community.name) }}" class="btn btn-primary">
+      <i class="fas fa-user-plus"></i> Подписаться
+    </a>
+    {% else %}
+    <a href="{{ url_for('create_post') }}?community={{ community.id }}" class="btn btn-primary">
+      <i class="fas fa-plus"></i> Создать пост
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+</div>
 {% endblock %}

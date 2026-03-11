@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ profile_user.username }} — Rebu{% endblock %}
+
+{% block content %}
+<div style="max-width:760px;width:100%">
+<div class="profile-header">
+  <div class="user-ava xl" style="{% if profile_user.avatar_color %}background:{{ profile_user.avatar_color }}{% endif %}">
+    {{ profile_user.username | first | upper }}
+  </div>
+  <div class="profile-info">
+    <div class="profile-name">
+      {{ profile_user.username }}
+      {% if profile_user.role == 'admin' %}<i class="fas fa-crown role-crown" style="font-size:16px" title="Администратор"></i>
+      {% elif profile_user.role == 'moderator' %}<i class="fas fa-shield-halved role-shield" style="font-size:16px" title="Модератор"></i>{% endif %}
+      {% if profile_user.is_banned %}
+      <span style="font-size:13px;color:var(--red);font-weight:500"><i class="fas fa-ban"></i> заблокирован</span>
+      {% endif %}
+    </div>
+    <div class="profile-stats">
+      <span class="profile-stat">Карма: <strong>{{ profile_user.karma }}</strong></span>
+      <span class="profile-stat">Постов: <strong>{{ posts_count }}</strong></span>
+      <span class="profile-stat">Комментариев: <strong>{{ comments_count }}</strong></span>
+      <span class="profile-stat">На сайте с <strong>{{ profile_user.created_at[:10] }}</strong></span>
+    </div>
+    {% if profile_user.bio %}
+    <div class="profile-bio">{{ profile_user.bio }}</div>
+    {% endif %}
+    {% if is_own_profile %}
+    <a href="{{ url_for('edit_profile') }}" class="btn btn-ghost btn-sm" style="margin-top:12px">
+      <i class="fas fa-pen"></i> Редактировать профиль
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="profile-tabs">
+  <a href="{{ url_for('user_profile', username=profile_user.username, tab='posts') }}"
+     class="profile-tab {% if tab == 'posts' %}active{% endif %}">
+    <i class="fas fa-newspaper"></i> Посты ({{ posts_count }})
+  </a>
+  <a href="{{ url_for('user_profile', username=profile_user.username, tab='comments') }}"
+     class="profile-tab {% if tab == 'comments' %}active{% endif %}">
+    <i class="fas fa-comments"></i> Комментарии ({{ comments_count }})
+  </a>
+</div>
+
+{% if tab == 'posts' %}
+  {% if items %}
+    {% for post in items %}
+    <article class="post-card">
+      <div class="post-meta">
+        {% if post.community_name %}
+        <a href="{{ url_for('community_detail', community_name=post.community_name) }}" class="post-community-tag">r/{{ post.community_name }}</a>
+        {% endif %}
+        <span class="post-time">{{ post.created_at[:16] }}</span>
+      </div>
+      <h2 class="post-title"><a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a></h2>
+      {% if post.content %}
+      <div class="post-excerpt">{{ post.content | striptags | truncate(200, True, '…') }}</div>
+      {% endif %}
+      <div class="post-actions">
+        <span class="score-chip {% if post.upvotes - post.downvotes > 0 %}pos{% endif %}">
+          <i class="fas fa-arrow-up"></i> {{ post.upvotes - post.downvotes }}
+        </span>
+        <span class="act-btn"><i class="fas fa-comment"></i> {{ post.comments_count }}</span>
+      </div>
+    </article>
+    {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon"><i class="fas fa-newspaper"></i></div>
+    <h3>Постов нет</h3>
+    <p>{{ profile_user.username }} ещё ничего не публиковал</p>
+  </div>
+  {% endif %}
+
+{% else %}
+  {% if items %}
+    {% for comment in items %}
+    <div class="comment-preview-card">
+      <div class="comment-preview-ref">
+        <i class="fas fa-arrow-right" style="font-size:10px"></i>
+        в посте: <a href="{{ url_for('post_detail', post_id=comment.post_id) }}">{{ comment.post_title }}</a>
+        <span style="color:var(--text-3);margin-left:8px">{{ comment.created_at[:16] }}</span>
+      </div>
+      <div class="comment-preview-body">{{ comment.content | truncate(300, True, '…') }}</div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon"><i class="fas fa-comments"></i></div>
+    <h3>Комментариев нет</h3>
+    <p>{{ profile_user.username }} ещё ничего не комментировал</p>
+  </div>
+  {% endif %}
+{% endif %}
+
+{% if total_pages > 1 %}
+<div class="pagination">
+  {% if page > 1 %}
+  <a href="{{ url_for('user_profile', username=profile_user.username, tab=tab, page=page-1) }}" class="pg-btn">
+    <i class="fas fa-chevron-left"></i> Назад
+  </a>
+  {% endif %}
+  <span class="pg-info">{{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}
+  <a href="{{ url_for('user_profile', username=profile_user.username, tab=tab, page=page+1) }}" class="pg-btn">
+    Далее <i class="fas fa-chevron-right"></i>
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+</div>
+{% endblock %}

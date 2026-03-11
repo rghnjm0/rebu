@@ -1,122 +1,24 @@
 {% extends "base.html" %}
-
-{% block title %}FAQ - Часто задаваемые вопросы{% endblock %}
+{% block title %}FAQ — Rebu{% endblock %}
 
 {% block content %}
-<div style="max-width: 800px; margin: 0 auto; padding: 20px;">
-    <h1 style="font-size: 24px; margin-bottom: 20px;">Часто задаваемые вопросы</h1>
-
-    <div style="margin-bottom: 30px;">
-        <h2 style="font-size: 20px; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Аккаунт и регистрация</h2>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Как зарегистрироваться на платформе?</p>
-            <p style="margin-left: 20px; color: #555;">Нажмите кнопку "Регистрация" в правом верхнем углу. Заполните форму: имя пользователя (латиница, 3-20 символов), email и пароль. После регистрации вы автоматически войдете в систему.</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Что делать, если я забыл пароль?</p>
-            <p style="margin-left: 20px; color: #555;">Функция восстановления пароля находится в разработке. Пока вы можете создать новый аккаунт или обратиться к администратору.</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Можно ли сменить имя пользователя?</p>
-            <p style="margin-left: 20px; color: #555;">Нет, имя пользователя уникально и не может быть изменено после регистрации.</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Какие роли есть на платформе?</p>
-            <p style="margin-left: 20px; color: #555;">Пользователь (базовые возможности), Модератор (модерация контента), Администратор (полный доступ).</p>
-        </div>
+<div style="max-width:680px">
+  <div class="page-hdr"><h1><i class="fas fa-circle-question" style="color:var(--accent)"></i> FAQ</h1></div>
+  <div class="card">
+    {% set faqs = [
+      ("Как создать пост?", "Войдите в аккаунт, нажмите «Новый пост» в боковой панели. Выберите сообщество, введите заголовок и содержание."),
+      ("Как создать сообщество?", "В боковой панели нажмите «Новое сообщество». Придумайте уникальное название (латиница, цифры, _) и заполните данные."),
+      ("Как голосовать?", "Нажимайте ↑ или ↓ под постом. Голоса влияют на рейтинг постов и карму авторов."),
+      ("Что такое карма?", "Это рейтинг активности. Увеличивается когда другие голосуют за ваши посты и комментарии."),
+      ("Как пожаловаться на контент?", "Нажмите иконку флажка на посте или комментарии. Выберите причину — модераторы рассмотрят жалобу."),
+      ("Как изменить профиль?", "Нажмите на свой аватар вверху, откройте профиль и нажмите «Редактировать профиль».")
+    ] %}
+    {% for q, a in faqs %}
+    <div style="{% if not loop.first %}border-top:1px solid var(--border);padding-top:16px;margin-top:16px{% endif %}">
+      <div style="font-weight:700;margin-bottom:6px;font-size:15px">{{ q }}</div>
+      <div style="font-size:14px;color:var(--text-2);line-height:1.6">{{ a }}</div>
     </div>
-
-    <div style="margin-bottom: 30px;">
-        <h2 style="font-size: 20px; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Посты и контент</h2>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Как создать новый пост?</p>
-            <p style="margin-left: 20px; color: #555;">Нажмите "Новый пост" в меню, выберите сообщество, введите заголовок и содержание, прикрепите изображения при необходимости и нажмите "Опубликовать".</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Что такое Markdown?</p>
-            <p style="margin-left: 20px; color: #555;">Markdown - язык разметки для форматирования текста. Используйте жирный, *курсив*, # Заголовок, [ссылка](url), ![изображение](url).</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Как голосовать за посты?</p>
-            <p style="margin-left: 20px; color: #555;">Нажмите стрелку вверх (👍) или вниз (👎) рядом с постом. Голосовать могут только зарегистрированные пользователи.</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Как добавить изображение?</p>
-            <p style="margin-left: 20px; color: #555;">При создании поста нажмите на область загрузки и выберите файл (JPG, PNG, GIF до 5MB) или вставьте ссылку в формате ![описание](url).</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Как добавить пост в закладки?</p>
-            <p style="margin-left: 20px; color: #555;">Нажмите на иконку 🔖 "Закладка" у поста. Все сохраненные посты доступны в разделе "Закладки".</p>
-        </div>
-    </div>
-
-    <div style="margin-bottom: 30px;">
-        <h2 style="font-size: 20px; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Сообщества</h2><div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Как создать сообщество?</p>
-            <p style="margin-left: 20px; color: #555;">Нажмите "Новое сообщество", заполните название (латиница, 3-20 символов), отображаемое имя и описание. Выберите тип: публичное или приватное.</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Чем отличаются публичные и приватные сообщества?</p>
-            <p style="margin-left: 20px; color: #555;">Публичные - все видят посты и могут подписаться. Приватные - посты видят только подписчики, вступление по приглашениям.</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Как подписаться на сообщество?</p>
-            <p style="margin-left: 20px; color: #555;">На странице сообщества нажмите кнопку "Подписаться". Отписаться можно повторным нажатием.</p>
-        </div>
-    </div>
-
-    <div style="margin-bottom: 30px;">
-        <h2 style="font-size: 20px; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Модерация и правила</h2>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Как пожаловаться на контент?</p>
-            <p style="margin-left: 20px; color: #555;">Нажмите иконку ⚑ "Пожаловаться" рядом с постом или комментарием, выберите причину и отправьте жалобу.</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Что происходит после жалобы?</p>
-            <p style="margin-left: 20px; color: #555;">Жалоба попадает к модераторам. Они изучают контент и принимают решение: удалить или оставить.</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ За что могут забанить?</p>
-            <p style="margin-left: 20px; color: #555;">За оскорбления, спам, запрещенный контент, нарушение правил сообществ.</p>
-        </div>
-    </div>
-
-    <div style="margin-bottom: 30px;">
-        <h2 style="font-size: 20px; margin-bottom: 15px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Технические вопросы</h2>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Какие браузеры поддерживаются?</p>
-            <p style="margin-left: 20px; color: #555;">Chrome, Firefox, Safari, Edge, Opera (последние версии).</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Есть ли мобильное приложение?</p>
-            <p style="margin-left: 20px; color: #555;">Отдельного приложения нет, но сайт полностью адаптирован для мобильных устройств.</p>
-        </div>
-
-        <div style="margin-bottom: 15px;">
-            <p style="font-weight: bold; margin-bottom: 5px;">❓ Почему не загружаются изображения?</p>
-            <p style="margin-left: 20px; color: #555;">Проверьте размер файла (до 5MB), формат (JPG, PNG, GIF) и интернет-соединение.</p>
-        </div>
-    </div>
-
-    <div style="margin-top: 40px; padding: 20px; background-color: #f8f9fa; border-radius: 5px; text-align: center;">
-        <p style="font-size: 16px;">❓ Не нашли ответ на свой вопрос?</p>
-        <p style="color: #555;">Напишите нам на email: <a href="mailto:support@minireddit.com">support@minireddit.com</a></p>
-    </div>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

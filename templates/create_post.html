@@ -1,628 +1,190 @@
-<!-- templates/create_post.html -->
 {% extends "base.html" %}
-
-{% block title %}Создать пост - MiniReddit{% endblock %}
+{% block title %}Новый пост — Rebu{% endblock %}
 
 {% block content %}
-<div class="create-post">
-    <div class="page-header">
-        <h1><i class="fas fa-pen-fancy"></i> Создать новый пост</h1>
-        <p class="subtitle">Поделитесь своими мыслями с сообществом</p>
-    </div>
-
-    <div class="create-post-card">
-        <form method="POST" action="{{ url_for('create_post') }}" enctype="multipart/form-data" id="post-form">
-            <div class="form-section">
-                <div class="form-group">
-                    <label for="community_id">
-                        <i class="fas fa-users"></i>
-                        Сообщество:
-                    </label>
-                    <select id="community_id" name="community_id" class="form-control">
-                        <option value="">Общая лента</option>
-                        {% for community in communities %}
-                        <option value="{{ community.id }}">r/{{ community.name }} - {{ community.display_name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="title">
-                        <i class="fas fa-heading"></i>
-                        Заголовок: <span class="required">*</span>
-                    </label>
-                    <input type="text" id="title" name="title" required maxlength="200"
-                           placeholder="Введите заголовок поста" class="form-control">
-                </div>
-
-                <div class="form-group">
-                    <label for="content">
-                        <i class="fas fa-align-left"></i>
-                        Содержание: <span class="required">*</span>
-                    </label>
-                    <textarea id="postContent" name="content" required>
-                        {{ content if content else '' }}  <!-- для edit_post будет подставляться существующий текст -->
-                    </textarea>
-                </div>
-
-                <!-- Загрузка изображений -->
-                <div class="form-group">
-                    <label for="images">
-                        <i class="fas fa-images"></i>
-                        Добавить изображения:
-                    </label>
-                    <div class="image-upload-area" id="drop-area">
-                        <input type="file" id="images" name="images" accept="image/*" multiple class="file-input">
-                        <div class="upload-message">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            <p>Перетащите файлы сюда или кликните для выбора</p>
-                            <small>Поддерживаются JPG, PNG, GIF (макс. 5 МБ)</small>
-                        </div>
-                    </div>
-                    <div id="image-preview" class="image-preview"></div>
-                </div>
-
-                <!-- Быстрые кнопки форматирования -->
-                <div class="formatting-toolbar">
-                    <button type="button" class="format-btn" onclick="insertFormat('**', '**')" title="Жирный"><i class="fas fa-bold"></i></button>
-                    <button type="button" class="format-btn" onclick="insertFormat('*', '*')" title="Курсив"><i class="fas fa-italic"></i></button>
-                    <button type="button" class="format-btn" onclick="insertFormat('# ', '')" title="Заголовок 1"><i class="fas fa-heading"></i>1</button>
-                    <button type="button" class="format-btn" onclick="insertFormat('## ', '')" title="Заголовок 2"><i class="fas fa-heading"></i>2</button>
-                    <button type="button" class="format-btn" onclick="insertFormat('- ', '')" title="Маркированный список"><i class="fas fa-list-ul"></i></button>
-                    <button type="button" class="format-btn" onclick="insertFormat('1. ', '')" title="Нумерованный список"><i class="fas fa-list-ol"></i></button>
-                    <button type="button" class="format-btn" onclick="insertFormat('> ', '')" title="Цитата"><i class="fas fa-quote-right"></i></button>
-                    <button type="button" class="format-btn" onclick="insertFormat('`', '`')" title="Код"><i class="fas fa-code"></i></button>
-                    <button type="button" class="format-btn" onclick="insertImage()" title="Вставить изображение"><i class="fas fa-image"></i></button>
-                    <button type="button" class="format-btn" onclick="insertLink()" title="Вставить ссылку"><i class="fas fa-link"></i></button>
-                </div>
-
-                <!-- Предпросмотр -->
-                <div class="preview-section">
-                    <h3><i class="fas fa-eye"></i> Предпросмотр</h3>
-                    <div id="preview" class="preview-content"></div>
-                </div>
-            </div>
-
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-paper-plane"></i> Опубликовать
-                </button>
-                <button type="button" class="btn btn-outline" onclick="clearDraft()">
-                    <i class="fas fa-trash"></i> Очистить
-                </button>
-                <a href="{{ url_for('index') }}" class="btn btn-secondary">
-                    <i class="fas fa-times"></i> Отмена
-                </a>
-            </div>
-        </form>
-    </div>
+<div class="feed-wrap">
+<div class="page-hdr">
+  <h1>Создать пост</h1>
+  <p>Используйте кнопку <i class="fas fa-image" style="color:var(--accent)"></i> в редакторе для вставки изображений</p>
 </div>
 
-<!-- Подключение Marked.js для предпросмотра -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<div class="card">
+  <form method="POST" id="postForm">
+    <div class="form-group">
+      <label class="form-label">Сообщество</label>
+      <select name="community_id" class="form-select" id="communitySelect">
+        <option value="">— Общая лента —</option>
+        {% for community in communities %}
+        <option value="{{ community.id }}"
+          {% if preselect_community and community.id|string == preselect_community|string %}selected{% endif %}>
+          r/{{ community.name }} — {{ community.display_name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
 
-<style>
-.create-post {
-    max-width: 900px;
-    margin: 0 auto;
-}
+    <div class="form-group">
+      <label class="form-label" for="postTitle">
+        Заголовок <span class="req">*</span>
+      </label>
+      <input type="text" name="title" id="postTitle" class="form-input"
+             placeholder="Введите заголовок поста" required maxlength="300" autocomplete="off">
+      <div class="form-hint"><span id="titleCount">0</span> / 300</div>
+    </div>
 
-.page-header {
-    margin-bottom: 24px;
-    text-align: center;
-}
+    <div class="form-group">
+      <label class="form-label">Содержание <span class="req">*</span></label>
+      <div id="editorWrap">
+        <textarea id="postContent" name="content"></textarea>
+      </div>
+    </div>
 
-.page-header h1 {
-    font-size: 28px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    color: var(--primary-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-paper-plane"></i> Опубликовать
+      </button>
+      <button type="button" class="btn btn-ghost" onclick="clearForm()">
+        <i class="fas fa-xmark"></i> Очистить
+      </button>
+      <a href="{{ url_for('index') }}" class="btn btn-ghost">Отмена</a>
+    </div>
+  </form>
+</div>
+</div>
+{% endblock %}
 
-.page-header .subtitle {
-    color: var(--text-secondary);
-    font-size: 16px;
-}
-
-.create-post-card {
-    background: var(--bg-card);
-    border-radius: var(--radius);
-    padding: 30px;
-    border: 1px solid var(--border-light);
-    box-shadow: var(--shadow-sm);
-}
-
-.form-section {
-    margin-bottom: 30px;
-}
-
-.form-group {
-    margin-bottom: 24px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-
-.form-group label i {
-    margin-right: 6px;
-    color: var(--primary-color);
-}
-
-.form-control {
-    width: 100%;
-    padding: 12px 16px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    background: var(--bg-main);
-    color: var(--text-primary);
-    transition: var(--transition);
-}
-
-.form-control:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-select.form-control {
-    cursor: pointer;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 12px center;
-    padding-right: 40px;
-}
-
-textarea.form-control {
-    min-height: 250px;
-    resize: vertical;
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Consolas', monospace;
-    line-height: 1.6;
-}
-
-.required {
-    color: var(--danger-color);
-    margin-left: 2px;
-}
-
-/* Форматирование */
-.formatting-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-bottom: 16px;
-    padding: 10px;
-    background: var(--bg-sidebar);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-light);
-}
-
-.format-btn {
-    padding: 8px 12px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
-    font-size: 13px;
-    cursor: pointer;
-    transition: var(--transition);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.format-btn:hover {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-}
-
-.format-btn i {
-    font-size: 14px;
-}
-
-/* Загрузка изображений */
-.image-upload-area {
-    border: 2px dashed var(--border-color);
-    border-radius: var(--radius);
-    padding: 30px;
-    text-align: center;
-    cursor: pointer;
-    transition: var(--transition);
-    background: var(--bg-sidebar);
-}
-
-.image-upload-area:hover {
-    border-color: var(--primary-color);
-    background: var(--bg-hover);
-}
-
-.image-upload-area.dragover {
-    border-color: var(--primary-color);
-    background: rgba(99, 102, 241, 0.05);
-}
-
-.file-input {
-    display: none;
-}
-
-.upload-message i {
-    font-size: 48px;
-    color: var(--primary-color);
-    margin-bottom: 10px;
-}
-
-.upload-message p {
-    font-size: 16px;
-    color: var(--text-primary);
-    margin-bottom: 5px;
-}
-
-.upload-message small {
-    color: var(--text-muted);
-}
-
-.image-preview {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-top: 20px;
-}
-
-.preview-item {
-    position: relative;
-    width: 120px;
-    height: 120px;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    border: 1px solid var(--border-light);
-    box-shadow: var(--shadow-sm);
-}
-
-.preview-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.preview-item .remove-btn {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    width: 24px;
-    height: 24px;
-    background: rgba(239, 68, 68, 0.9);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    transition: var(--transition);
-}
-
-.preview-item .remove-btn:hover {
-    background: var(--danger-color);
-    transform: scale(1.1);
-}
-
-.preview-item .loading {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.preview-item .loading i {
-    color: var(--primary-color);
-    font-size: 24px;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-/* Предпросмотр */
-.preview-section {
-    margin-top: 24px;
-    padding: 20px;
-    background: var(--bg-sidebar);
-    border-radius: var(--radius);
-    border: 1px solid var(--border-light);
-}
-
-.preview-section h3 {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 16px;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.preview-section h3 i {
-    color: var(--primary-color);
-}
-
-.preview-content {
-    background: var(--bg-card);
-    padding: 20px;
-    border-radius: var(--radius-sm);
-    min-height: 100px;
-    border: 1px solid var(--border-color);
-    font-size: 15px;
-    line-height: 1.6;
-    color: var(--text-secondary);
-}
-
-.preview-content h1 { font-size: 2em; margin: 0.5em 0; color: var(--text-primary); }
-.preview-content h2 { font-size: 1.75em; margin: 0.5em 0; color: var(--text-primary); }
-.preview-content h3 { font-size: 1.5em; margin: 0.5em 0; color: var(--text-primary); }
-.preview-content p { margin: 1em 0; }
-.preview-content ul, .preview-content ol { margin: 1em 0; padding-left: 2em; }
-.preview-content blockquote {
-    margin: 1em 0;
-    padding: 0.5em 1em;
-    border-left: 3px solid var(--primary-color);
-    background: var(--bg-sidebar);
-    font-style: italic;
-}
-.preview-content code {
-    background: var(--bg-main);
-    padding: 0.2em 0.4em;
-    border-radius: 3px;
-    font-family: monospace;
-}
-.preview-content pre {
-    background: var(--bg-main);
-    padding: 1em;
-    border-radius: var(--radius-sm);
-    overflow-x: auto;
-}
-.preview-content img {
-    max-width: 100%;
-    height: auto;
-    border-radius: var(--radius-sm);
-}
-
-.form-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 24px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border-light);
-}
-
-.form-actions .btn {
-    padding: 12px 24px;
-    font-size: 14px;
-    font-weight: 600;
-}
-
-@media (max-width: 768px) {
-    .create-post-card {
-        padding: 20px;
-    }
-
-    .form-actions {
-        flex-direction: column;
-    }
-
-    .form-actions .btn {
-        width: 100%;
-    }
-
-    .formatting-toolbar {
-        justify-content: center;
-    }
-}
-</style>
-
+{% block scripts %}
+<script src="https://cdn.tiny.cloud/1/t4sz6siquna8c2qwiiui5f0pru19ajpggk7u0xkvp5n5odrd/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
-// Переменные для работы с обычными прикреплёнными изображениями (не через TinyMCE)
-let selectedFiles = [];
-
-// -------------------
-// TinyMCE инициализация
-// -------------------
 tinymce.init({
-    selector: '#postContent',
-    language: 'ru',
-    language_url: '/static/tinymce/langs/ru.js', // если хочешь локально хранить, иначе CDN выше
+  selector: '#postContent',
+  language: 'ru',
+  height: 380,
+  min_height: 260,
+  menubar: false,
+  branding: false,
+  resize: 'vertical',
+  plugins: 'lists link image table code fullscreen autolink',
+  toolbar: 'bold italic underline strikethrough | blocks | bullist numlist | blockquote link image table | code fullscreen',
+  toolbar_mode: 'sliding',
+  content_style:
+    'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+    'font-size:15px;line-height:1.65;color:#1a1916;padding:10px 14px;margin:0}' +
+    'p{margin:0 0 .75em}' +
+    'img{max-width:100%;height:auto;border-radius:8px;display:block;margin:.5em 0}' +
+    'blockquote{border-left:3px solid #e8402a;padding:6px 14px;margin:1em 0;background:#f0eeea;border-radius:0 5px 5px 0}' +
+    'pre{background:#1e1e1e;color:#d4d4d4;padding:14px;border-radius:6px;overflow-x:auto}' +
+    'code{background:#f0eeea;padding:2px 5px;border-radius:3px;font-size:13px}',
 
-    height: 500,
-    min_height: 400,
-    menubar: false,
-    branding: false,                    // убирает "Powered by TinyMCE" (с ключом точно работает)
+  // Image upload handler — sends to /upload_image, returns {location: url}
+  images_upload_url: '{{ url_for("upload_image") }}',
+  images_reuse_filename: false,
+  images_upload_credentials: true,   // send session cookies
+  images_upload_handler: function(blobInfo, progress) {
+    return new Promise(function(resolve, reject) {
+      var fd = new FormData();
+      fd.append('file', blobInfo.blob(), blobInfo.filename());
 
-    plugins: [
-        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap',
-        'preview', 'anchor', 'searchreplace', 'visualblocks', 'code',
-        'fullscreen', 'insertdatetime', 'media', 'table', 'help', 'wordcount',
-        'autosave'  // полезно для черновиков
-    ],
+      var xhr = new XMLHttpRequest();
+      xhr.withCredentials = true;   // send session cookie
+      xhr.open('POST', '{{ url_for("upload_image") }}');
 
-    toolbar: 'undo redo | blocks | ' +
-             'bold italic forecolor | alignleft aligncenter ' +
-             'alignright alignjustify | bullist numlist outdent indent | ' +
-             'link image media table | removeformat | code fullscreen help',
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) progress(e.loaded / e.total * 100);
+      };
 
-    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1e293b; }',
+      xhr.onload = function() {
+        if (xhr.status === 401) {
+          reject({ message: 'Сессия истекла — войдите заново', remove: true });
+          return;
+        }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject('Ошибка загрузки: HTTP ' + xhr.status);
+          return;
+        }
+        try {
+          var json = JSON.parse(xhr.responseText);
+          if (!json.location) { reject('Сервер не вернул URL'); return; }
+          resolve(json.location);
+        } catch(e) {
+          reject('Неверный ответ сервера');
+        }
+      };
 
-    // Загрузка изображений через редактор
-    images_upload_handler: function (blobInfo, progress) {
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '{{ url_for("upload_image") }}');  // ← создай этот маршрут в app.py
+      xhr.onerror = function() { reject('Сетевая ошибка при загрузке'); };
+      xhr.send(fd);
+    });
+  },
 
-            xhr.onload = function () {
-                if (xhr.status === 200) {
-                    const json = JSON.parse(xhr.responseText);
-                    if (json.location) {
-                        resolve(json.location);  // URL загруженной картинки
-                    } else {
-                        reject('Ошибка сервера: нет location');
-                    }
-                } else {
-                    reject('HTTP ошибка: ' + xhr.status);
-                }
-            };
-
-            xhr.onerror = function () {
-                reject('Ошибка сети при загрузке изображения');
-            };
-
-            xhr.upload.onprogress = function (e) {
-                if (e.lengthComputable) {
-                    progress(Math.round((e.loaded / e.total) * 100));
-                }
-            };
-
-            const formData = new FormData();
-            formData.append('file', blobInfo.blob(), blobInfo.filename());
-
-            xhr.send(formData);
-        });
-    },
-
-    // Автоматическое сохранение черновика каждые 30 сек
-    autosave_ask_before_unload: false,
-    autosave_interval: '30s',
-    autosave_retention: '1d',
-
-    // Предпросмотр внутри редактора (опционально)
-    setup: function (editor) {
-        editor.on('change', function () {
-            updatePreview();
-            saveDraft();
-        });
-        editor.on('init', function () {
-            loadDraft();           // загрузка черновика после инициализации
-            updatePreview();
-        });
-    }
+  setup: function(editor) {
+    editor.on('input change keyup', debounce(saveDraft, 800));
+    editor.on('init', loadDraft);
+  }
 });
 
-// -------------------
-// Предпросмотр (показывает HTML из TinyMCE)
-// -------------------
-function updatePreview() {
-    const content = tinymce.get('postContent').getContent();
-    document.getElementById('preview').innerHTML = content;
+function debounce(fn, ms) {
+  var t; return function() { clearTimeout(t); t = setTimeout(fn, ms); };
 }
 
-// -------------------
-// Автосохранение черновика (адаптировано под TinyMCE)
-// -------------------
-let autoSaveTimer;
+// ── Draft ─────────────────────────────────────────────────────────────────────
 function saveDraft() {
-    const draft = {
-        title: document.getElementById('title').value.trim(),
-        content: tinymce.get('postContent').getContent(),
-        community: document.getElementById('community_id').value,
-        timestamp: new Date().toISOString()
-    };
-    if (draft.title || draft.content) {
-        localStorage.setItem('post_draft', JSON.stringify(draft));
-    }
+  try {
+    var ed = tinymce.get('postContent');
+    localStorage.setItem('rebu_post_draft', JSON.stringify({
+      title:     document.getElementById('postTitle').value,
+      content:   ed ? ed.getContent() : '',
+      community: document.getElementById('communitySelect').value,
+      ts:        Date.now()
+    }));
+  } catch(e) {}
 }
 
 function loadDraft() {
-    const draftStr = localStorage.getItem('post_draft');
-    if (!draftStr) return;
-
-    const draft = JSON.parse(draftStr);
-    const draftTime = new Date(draft.timestamp);
-    const now = new Date();
-    const hoursDiff = (now - draftTime) / (3600 * 1000);
-
-    if (hoursDiff < 24 && (draft.title || draft.content)) {
-        if (confirm('Найден черновик от ' + draftTime.toLocaleString('ru-RU') + '. Восстановить?')) {
-            document.getElementById('title').value = draft.title || '';
-            tinymce.get('postContent').setContent(draft.content || '');
-            document.getElementById('community_id').value = draft.community || '';
-            updatePreview();
-        } else {
-            localStorage.removeItem('post_draft');
-        }
-    } else {
-        localStorage.removeItem('post_draft');
+  try {
+    var raw = localStorage.getItem('rebu_post_draft');
+    if (!raw) return;
+    var d = JSON.parse(raw);
+    if (Date.now() - d.ts > 86400000) { localStorage.removeItem('rebu_post_draft'); return; }
+    if (!(d.title || d.content)) return;
+    if (!confirm('Восстановить черновик от ' + new Date(d.ts).toLocaleString('ru') + '?')) {
+      localStorage.removeItem('rebu_post_draft'); return;
     }
+    document.getElementById('postTitle').value = d.title || '';
+    if (d.community) document.getElementById('communitySelect').value = d.community;
+    var ed = tinymce.get('postContent');
+    if (ed) ed.setContent(d.content || '');
+  } catch(e) {}
 }
 
-// -------------------
-// Очистка формы
-// -------------------
-function clearDraft() {
-    if (confirm('Очистить все поля и черновик?')) {
-        document.getElementById('title').value = '';
-        tinymce.get('postContent').setContent('');
-        document.getElementById('community_id').value = '';
-        selectedFiles = [];
-        renderPreview();
-        updatePreview();
-        localStorage.removeItem('post_draft');
-    }
+function clearForm() {
+  if (!confirm('Очистить форму?')) return;
+  document.getElementById('postTitle').value = '';
+  document.getElementById('communitySelect').value = '';
+  var ed = tinymce.get('postContent');
+  if (ed) ed.setContent('');
+  localStorage.removeItem('rebu_post_draft');
+  document.getElementById('titleCount').textContent = '0';
 }
 
-// -------------------
-// Логика обычных прикреплённых файлов (остаётся без изменений)
-// -------------------
-const dropArea = document.getElementById('drop-area');
-const fileInput = document.getElementById('images');
-
-// ... (весь твой код обработки drop, handleFiles, displayPreview, removeFile, renderPreview остаётся без изменений)
-
-
-// Валидация перед отправкой
-document.getElementById('post-form').addEventListener('submit', function(e) {
-    const title = document.getElementById('title').value.trim();
-    const content = tinymce.get('postContent').getContent().trim();
-
-    if (!title) {
-        e.preventDefault();
-        alert('Введите заголовок поста');
-        return false;
-    }
-
-    if (!content || content === '<p><br data-mce-bogus="1"></p>') {
-        e.preventDefault();
-        alert('Введите содержание поста');
-        return false;
-    }
-
-    // Можно добавить: если есть только картинки без текста — тоже предупредить
+// ── Title counter ─────────────────────────────────────────────────────────────
+document.getElementById('postTitle').addEventListener('input', function() {
+  document.getElementById('titleCount').textContent = this.value.length;
+  saveDraft();
 });
 
-// Загрузка черновика и очистка после успеха
-window.addEventListener('load', function() {
-    loadDraft();
-    updatePreview();
-});
+// ── Submit ────────────────────────────────────────────────────────────────────
+document.getElementById('postForm').addEventListener('submit', function(e) {
+  var title = document.getElementById('postTitle').value.trim();
+  var ed    = tinymce.get('postContent');
 
-const flashSuccess = document.querySelectorAll('.alert-success');
-if (flashSuccess.length > 0) {
-    localStorage.removeItem('post_draft');
-}
+  // Sync editor content to textarea BEFORE submit
+  if (ed) ed.save();
+
+  var content = ed ? ed.getContent().replace(/<[^>]*>/g, '').trim() : '';
+  if (!title) { e.preventDefault(); alert('Введите заголовок'); return; }
+  if (!content) { e.preventDefault(); alert('Введите содержание поста'); return; }
+
+  localStorage.removeItem('rebu_post_draft');
+});
 </script>
 {% endblock %}

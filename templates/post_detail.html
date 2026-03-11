@@ -1,237 +1,143 @@
-<!-- templates/post_detail.html -->
 {% extends "base.html" %}
+{% block title %}{{ post.title }} — Rebu{% endblock %}
 
 {% block content %}
-<div class="post-detail">
-    <div class="post-full">
-        <div class="vote">
-            <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
-               class="vote-btn up {% if user_vote == 'up' %}voted{% endif %}">
-                ↑
-            </a>
-            <span class="score">{{ post.upvotes - post.downvotes }}</span>
-            <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
-               class="vote-btn down {% if user_vote == 'down' %}voted{% endif %}">
-                ↓
-            </a>
-        </div>
-        <div class="post-content">
-            <div class="post-header">
-                {% if post.community_name %}
-                <a href="{{ url_for('community_detail', community_name=post.community_name) }}"
-                   class="community-badge">
-                    r/{{ post.community_name }}
-                </a>
-                <span class="separator">•</span>
-                {% endif %}
+<div class="feed-wrap">
+<div class="post-full-card">
+  <div class="post-meta">
+    {% if post.community_name %}
+    <a href="{{ url_for('community_detail', community_name=post.community_name) }}" class="post-community-tag">
+      r/{{ post.community_name }}
+    </a>
+    {% endif %}
+    <a href="{{ url_for('user_profile', username=post.username) }}" class="post-author-link">
+      {{ post.username }}
+      {% if post.author_role == 'admin' %}<i class="fas fa-crown role-crown"></i>
+      {% elif post.author_role == 'moderator' %}<i class="fas fa-shield-halved role-shield"></i>{% endif %}
+    </a>
+    <span class="post-time">{{ post.created_at[:16] }}</span>
 
-                <span class="post-author">
-                    {{ post.username }}
-                    {% if post.author_role == 'admin' %}
-                    <span class="role-badge admin" title="Администратор">👑</span>
-                    {% elif post.author_role == 'moderator' %}
-                    <span class="role-badge moderator" title="Модератор">🛡️</span>
-                    {% endif %}
-                </span>
-
-                <span class="separator">•</span>
-                <span class="post-date">{{ post.created_at }}</span>
-
-                <!-- Кнопка жалобы для всех пользователей (кроме автора) -->
-                {% if session.user_id and session.user_id != post.user_id %}
-                <span class="separator">•</span>
-                <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}"
-                   class="report-link" title="Пожаловаться">
-                    <i class="fas fa-flag"></i>
-                </a>
-                {% endif %}
-
-                <!-- Кнопки модерации для модераторов и админов -->
-                {% if can_moderate %}
-                <span class="separator">•</span>
-                <div class="moderation-actions">
-                    {% if post.is_deleted %}
-                    <a href="{{ url_for('moderate_post', post_id=post.id, action='restore') }}"
-                       class="moderate-link restore"
-                       onclick="return confirm('Восстановить этот пост?')"
-                       title="Восстановить пост">
-                        <i class="fas fa-undo-alt"></i>
-                    </a>
-                    {% else %}
-                    <a href="{{ url_for('moderate_post', post_id=post.id, action='delete') }}"
-                       class="moderate-link delete"
-                       onclick="return confirm('Удалить этот пост? Это действие нельзя отменить.')"
-                       title="Удалить пост">
-                        <i class="fas fa-trash-alt"></i>
-                    </a>
-                    {% endif %}
-                </div>
-                {% endif %}
-
-                <!-- Кнопка редактирования для автора -->
-                {% if is_author and not post.is_deleted %}
-                <span class="separator">•</span>
-                <a href="#" class="edit-link" title="Редактировать (в разработке)">
-                    <i class="fas fa-edit"></i>
-                </a>
-                {% endif %}
-            </div>
-
-            <h1>{{ post.title }}</h1>
-
-            <div class="post-meta">
-                <span class="vote-info">
-                    <i class="fas fa-arrow-up"></i> {{ post.upvotes }}
-                    <i class="fas fa-arrow-down"></i> {{ post.downvotes }}
-                    ({{ post.upvotes - post.downvotes }} всего)
-                </span>
-                <span class="separator">•</span>
-                <span class="comment-info">
-                    <i class="fas fa-comment"></i> {{ post.comments_count }} комментариев
-                </span>
-                {% if session.user_id %}
-                <span class="separator">•</span>
-                <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}" class="bookmark-link {% if user_bookmarked %}active{% endif %}" title="Добавить в закладки">
-                    <i class="fas fa-bookmark"></i>
-                    {% if user_bookmarked %}В закладках{% else %}В закладки{% endif %}
-                </a>
-                {% endif %}
-            </div>
-
-            {% if post.is_deleted %}
-            <div class="deleted-message">
-                <i class="fas fa-trash-alt"></i>
-                <div class="deleted-content">
-                    <strong>Этот пост был удален</strong>
-                    {% if post.deleted_by %}
-                    <span>модератором</span>
-                    {% endif %}
-                </div>
-            </div>
-            {% else %}
-            <div class="post-text markdown-content">
-                {{ post.content|safe }}
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="comments-section">
-        <div class="comments-header">
-            <h3>
-                <i class="fas fa-comments"></i>
-                Комментарии ({{ comments|length }})
-            </h3>
-
-            {% if session.user_id and not post.is_deleted %}
-            <button class="btn btn-primary" onclick="document.getElementById('comment-form').scrollIntoView({behavior: 'smooth'});">
-                <i class="fas fa-plus"></i> Написать комментарий
-            </button>
-            {% endif %}
-        </div>
-
-        {% if session.user_id and not post.is_deleted %}
-        <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}" class="comment-form" id="comment-form">
-            <textarea name="content" placeholder="Ваш комментарий..." required></textarea>
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-paper-plane"></i> Отправить
-                </button>
-                <button type="button" class="btn btn-outline" onclick="this.form.reset()">
-                    <i class="fas fa-times"></i> Очистить
-                </button>
-            </div>
-        </form>
-        {% elif not session.user_id %}
-        <div class="login-prompt">
-            <p>
-                <i class="fas fa-info-circle"></i>
-                <a href="{{ url_for('login') }}">Войдите</a>, чтобы оставить комментарий
-            </p>
-        </div>
-        {% elif post.is_deleted %}
-        <div class="deleted-prompt">
-            <p>
-                <i class="fas fa-ban"></i>
-                Комментирование удаленных постов невозможно
-            </p>
-        </div>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      {% if is_author and not post.is_deleted %}
+      <a href="{{ url_for('edit_post', post_id=post.id) }}" class="act-btn"><i class="fas fa-pen"></i></a>
+      <form method="POST" action="{{ url_for('delete_own_post', post_id=post.id) }}" style="display:inline"
+            onsubmit="return confirm('Удалить пост «{{ post.title }}»? Это нельзя отменить.')">
+        <button type="submit" class="act-btn" style="color:var(--red)"><i class="fas fa-trash"></i></button>
+      </form>
+      {% endif %}
+      {% if can_moderate %}
+        {% if post.is_deleted %}
+        <a href="{{ url_for('moderate_post', post_id=post.id, action='restore') }}" class="act-btn"
+           onclick="return confirm('Восстановить пост?')"><i class="fas fa-rotate-left"></i></a>
+        {% else %}
+        <a href="{{ url_for('moderate_post', post_id=post.id, action='delete') }}" class="act-btn"
+           onclick="return confirm('Удалить пост?')" style="color:var(--red)"><i class="fas fa-trash"></i></a>
         {% endif %}
-
-        <div class="comments">
-            {% if comments %}
-                {% for comment in comments %}
-                <div class="comment" id="comment-{{ comment.id }}">
-                    <div class="comment-header">
-                        <div class="comment-author-info">
-                            <span class="comment-author">
-                                {{ comment.username }}
-                                {% if comment.author_role == 'admin' %}
-                                <span class="role-badge admin" title="Администратор">👑</span>
-                                {% elif comment.author_role == 'moderator' %}
-                                <span class="role-badge moderator" title="Модератор">🛡️</span>
-                                {% endif %}
-                            </span>
-                            <span class="comment-date">{{ comment.created_at }}</span>
-                        </div>
-
-                        <div class="comment-actions">
-                            {% if session.user_id and session.user_id != comment.user_id %}
-                            <a href="{{ url_for('report_content', content_type='comment', content_id=comment.id) }}"
-                               class="report-link-small" title="Пожаловаться">
-                                <i class="fas fa-flag"></i>
-                            </a>
-                            {% endif %}
-
-                            {% if can_moderate %}
-                                {% if comment.is_deleted %}
-                                <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='restore') }}"
-                                   class="moderate-link-small restore"
-                                   onclick="return confirm('Восстановить этот комментарий?')"
-                                   title="Восстановить комментарий">
-                                    <i class="fas fa-undo-alt"></i>
-                                </a>
-                                {% else %}
-                                <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='delete') }}"
-                                   class="moderate-link-small delete"
-                                   onclick="return confirm('Удалить этот комментарий?')"
-                                   title="Удалить комментарий">
-                                    <i class="fas fa-trash-alt"></i>
-                                </a>
-                                {% endif %}
-                            {% endif %}
-
-                            {% if session.user_id == comment.user_id and not comment.is_deleted %}
-                            <a href="#" class="edit-link-small" title="Редактировать (в разработке)">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    {% if comment.is_deleted %}
-                    <div class="comment-deleted">
-                        <i class="fas fa-trash-alt"></i>
-                        Комментарий удален
-                    </div>
-                    {% else %}
-                    <div class="comment-text">
-                        {{ comment.content }}
-                    </div>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="no-comments">
-                    <div class="no-comments-icon">
-                        <i class="fas fa-comment-slash"></i>
-                    </div>
-                    <h4>Комментариев пока нет</h4>
-                    <p>Будьте первым, кто оставит комментарий!</p>
-                </div>
-            {% endif %}
-        </div>
+      {% endif %}
     </div>
+  </div>
+
+  <h1 class="post-full-title">{{ post.title }}</h1>
+
+  {% if post.is_deleted %}
+  <div class="flash flash-error"><i class="fas fa-circle-xmark"></i> Этот пост удалён</div>
+  {% else %}
+  <div class="post-full-body">{{ post.content | safe }}</div>
+  {% endif %}
+
+  <div class="post-actions" style="margin-top:16px">
+    {% set score = post.upvotes - post.downvotes %}
+    <span class="score-chip {% if score > 0 %}pos{% elif score < 0 %}neg{% endif %}">
+      <i class="fas fa-arrow-up"></i> {{ score }}
+    </span>
+    <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
+       class="act-btn up {% if user_vote == 'up' %}on{% endif %}">
+      <i class="fas fa-arrow-up"></i> <span>{{ post.upvotes }}</span>
+    </a>
+    <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
+       class="act-btn down {% if user_vote == 'down' %}on{% endif %}">
+      <i class="fas fa-arrow-down"></i> <span>{{ post.downvotes }}</span>
+    </a>
+    {% if session.user_id %}
+    <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}"
+       class="act-btn bm {% if user_bookmarked %}on{% endif %}">
+      <i class="fas fa-bookmark"></i> <span>{% if user_bookmarked %}Сохранено{% else %}Сохранить{% endif %}</span>
+    </a>
+    {% if session.user_id != post.user_id %}
+    <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}" class="act-btn rep">
+      <i class="fas fa-flag"></i> <span>Жалоба</span>
+    </a>
+    {% endif %}
+    {% endif %}
+  </div>
 </div>
 
+<div class="comments-wrap">
+  <div class="comments-hdr">
+    <i class="fas fa-comments" style="color:var(--accent)"></i>
+    Комментарии ({{ comments | length }})
+  </div>
+
+  {% if session.user_id and not post.is_deleted %}
+  <div class="comment-form">
+    <form method="POST" action="{{ url_for('add_comment', post_id=post.id) }}">
+      <textarea name="content" placeholder="Напишите комментарий…" required></textarea>
+      <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-paper-plane"></i> Отправить</button>
+    </form>
+  </div>
+  {% elif not session.user_id %}
+  <div style="padding:14px 18px;font-size:14px;color:var(--text-2);border-bottom:1px solid var(--border)">
+    <a href="{{ url_for('login') }}" style="color:var(--accent);font-weight:600">Войдите</a>, чтобы оставить комментарий
+  </div>
+  {% endif %}
+
+  {% if comments %}
+    {% for comment in comments %}
+    <div class="comment-item" id="c{{ comment.id }}">
+      <div class="comment-meta">
+        <a href="{{ url_for('user_profile', username=comment.username) }}" class="comment-author">
+          {{ comment.username }}
+          {% if comment.author_role == 'admin' %}<i class="fas fa-crown role-crown"></i>
+          {% elif comment.author_role == 'moderator' %}<i class="fas fa-shield-halved role-shield"></i>{% endif %}
+        </a>
+        <span class="comment-time">{{ comment.created_at[:16] }}</span>
+
+        <div class="comment-acts" style="margin-left:auto;margin-top:0">
+          {% if session.user_id and session.user_id != comment.user_id %}
+          <a href="{{ url_for('report_content', content_type='comment', content_id=comment.id) }}"
+             class="cact rep-flag" title="Пожаловаться"><i class="fas fa-flag"></i></a>
+          {% endif %}
+          {% if session.user_id == comment.user_id and not comment.is_deleted %}
+          <form method="POST" action="{{ url_for('delete_own_comment', post_id=post.id, comment_id=comment.id) }}"
+                style="display:inline" onsubmit="return confirm('Удалить комментарий?')">
+            <button type="submit" class="cact del" title="Удалить"><i class="fas fa-trash"></i></button>
+          </form>
+          {% endif %}
+          {% if can_moderate %}
+            {% if comment.is_deleted %}
+            <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='restore') }}"
+               class="cact" onclick="return confirm('Восстановить?')" title="Восстановить"><i class="fas fa-rotate-left"></i></a>
+            {% else %}
+            <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='delete') }}"
+               class="cact del" onclick="return confirm('Удалить?')" title="Удалить"><i class="fas fa-trash"></i></a>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+
+      {% if comment.is_deleted %}
+      <div style="font-size:13px;color:var(--text-3);font-style:italic"><i class="fas fa-trash" style="font-size:11px"></i> Комментарий удалён</div>
+      {% else %}
+      <div class="comment-body">{{ comment.content }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+  <div style="padding:28px;text-align:center;color:var(--text-3);font-size:14px">
+    <i class="fas fa-comment-slash" style="font-size:24px;display:block;margin-bottom:8px"></i>
+    Комментариев пока нет
+  </div>
+  {% endif %}
+</div>
+</div>
 {% endblock %}

@@ -1,362 +1,114 @@
-<!-- templates/edit_post.html -->
 {% extends "base.html" %}
-
-{% block title %}Редактировать пост - MiniReddit{% endblock %}
+{% block title %}Редактировать: {{ post.title }} — Rebu{% endblock %}
 
 {% block content %}
-<div class="edit-post-container">
-    <div class="edit-post-header">
-        <h2>Редактировать пост</h2>
-        <p class="subtitle">Измените содержимое поста</p>
-    </div>
-
-    <div class="create-post-card">
-        <form method="POST" action="{{ url_for('edit_post', post_id=post.id) }}" enctype="multipart/form-data" id="post-form">
-            <div class="form-section">
-                <div class="form-group">
-                    <label for="community_id">
-                        <i class="fas fa-users"></i>
-                        Сообщество:
-                    </label>
-                    <select id="community_id" name="community_id" class="form-control">
-                        <option value="">Общая лента</option>
-                        {% for community in communities %}
-                        <option value="{{ community.id }}" {% if post.community_id == community.id %}selected{% endif %}>
-                            r/{{ community.name }} - {{ community.display_name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="title">
-                        <i class="fas fa-heading"></i>
-                        Заголовок: <span class="required">*</span>
-                    </label>
-                    <input type="text" id="title" name="title" value="{{ post.title }}" required maxlength="200"
-                           placeholder="Заголовок поста" class="form-control">
-                </div>
-
-                <div class="form-group">
-                    <label for="postContent">
-                        <i class="fas fa-align-left"></i>
-                        Содержание: <span class="required">*</span>
-                    </label>
-                    <textarea id="postContent" name="content" required>
-{{ post.content | safe }}
-                    </textarea>
-                </div>
-
-                <!-- Существующие изображения (если нужно показывать/удалять — можно расширить позже) -->
-                {% if post.images %}
-                <div class="form-group">
-                    <label>Текущие изображения:</label>
-                    <div class="image-preview existing">
-                        {% for img in post.images %}
-                        <div class="preview-item">
-                            <img src="{{ url_for('static', filename=img) }}" alt="Изображение поста">
-                            <!-- Если хочешь удаление — добавь чекбокс -->
-                            <!-- <label><input type="checkbox" name="delete_images" value="{{ img }}"> Удалить</label> -->
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-
-                <!-- Новые изображения -->
-                <div class="form-group">
-                    <label for="images">
-                        <i class="fas fa-images"></i>
-                        Добавить/заменить изображения:
-                    </label>
-                    <div class="image-upload-area" id="drop-area">
-                        <input type="file" id="images" name="images" accept="image/*" multiple class="file-input">
-                        <div class="upload-message">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            <p>Перетащите файлы сюда или кликните для выбора</p>
-                            <small>Поддерживаются JPG, PNG, GIF (макс. 5 МБ)</small>
-                        </div>
-                    </div>
-                    <div id="image-preview" class="image-preview"></div>
-                </div>
-
-                <!-- Предпросмотр -->
-                <div class="preview-section">
-                    <h3><i class="fas fa-eye"></i> Предпросмотр</h3>
-                    <div id="preview" class="preview-content"></div>
-                </div>
-            </div>
-
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save"></i> Сохранить изменения
-                </button>
-                <button type="button" class="btn btn-outline" onclick="clearDraft()">
-                    <i class="fas fa-trash"></i> Отменить изменения
-                </button>
-                <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Назад к посту
-                </a>
-            </div>
-        </form>
-    </div>
+<div class="feed-wrap">
+<div class="page-hdr">
+  <h1>Редактировать пост</h1>
 </div>
 
-<!-- TinyMCE подключение (лучше вынести в base.html, но для автономности оставляем здесь) -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/8/tinymce.min.js" referrerpolicy="origin"></script>
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/8/langs/ru.min.js" referrerpolicy="origin"></script>
+<div class="card">
+  <form method="POST" id="editForm">
+    <div class="form-group">
+      <label class="form-label" for="editTitle">
+        Заголовок <span class="req">*</span>
+      </label>
+      <input type="text" name="title" id="editTitle" class="form-input"
+             value="{{ post.title }}" required maxlength="300" autocomplete="off">
+      <div class="form-hint"><span id="titleCount">{{ post.title | length }}</span> / 300</div>
+    </div>
 
+    <div class="form-group">
+      <label class="form-label">Содержание <span class="req">*</span></label>
+      <textarea id="editContent" name="content">{{ post.content | safe }}</textarea>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-floppy-disk"></i> Сохранить изменения
+      </button>
+      <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-ghost">Отмена</a>
+    </div>
+  </form>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.tiny.cloud/1/t4sz6siquna8c2qwiiui5f0pru19ajpggk7u0xkvp5n5odrd/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
-// Переменные для загружаемых файлов
-let selectedFiles = [];
-
-// Инициализация TinyMCE
 tinymce.init({
-    selector: '#postContent',
-    language: 'ru',
-    height: 500,
-    min_height: 400,
-    menubar: false,
-    branding: false,
+  selector: '#editContent',
+  language: 'ru',
+  height: 380,
+  min_height: 260,
+  menubar: false,
+  branding: false,
+  resize: 'vertical',
+  plugins: 'lists link image table code fullscreen autolink',
+  toolbar: 'bold italic underline strikethrough | blocks | bullist numlist | blockquote link image table | code fullscreen',
+  toolbar_mode: 'sliding',
+  content_style:
+    'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+    'font-size:15px;line-height:1.65;color:#1a1916;padding:10px 14px;margin:0}' +
+    'p{margin:0 0 .75em}' +
+    'img{max-width:100%;height:auto;border-radius:8px;display:block;margin:.5em 0}' +
+    'blockquote{border-left:3px solid #e8402a;padding:6px 14px;margin:1em 0;background:#f0eeea;border-radius:0 5px 5px 0}' +
+    'pre{background:#1e1e1e;color:#d4d4d4;padding:14px;border-radius:6px;overflow-x:auto}' +
+    'code{background:#f0eeea;padding:2px 5px;border-radius:3px;font-size:13px}',
 
-    plugins: [
-        'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table paste help wordcount autosave'
-    ],
+  images_upload_url: '{{ url_for("upload_image") }}',
+  images_reuse_filename: false,
+  images_upload_credentials: true,
+  images_upload_handler: function(blobInfo, progress) {
+    return new Promise(function(resolve, reject) {
+      var fd = new FormData();
+      fd.append('file', blobInfo.blob(), blobInfo.filename());
 
-    toolbar: 'undo redo | blocks | ' +
-             'bold italic forecolor | alignleft aligncenter alignright alignjustify | ' +
-             'bullist numlist outdent indent | link image media table | removeformat | code fullscreen help',
+      var xhr = new XMLHttpRequest();
+      xhr.withCredentials = true;
+      xhr.open('POST', '{{ url_for("upload_image") }}');
 
-    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1e293b; }',
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) progress(e.loaded / e.total * 100);
+      };
 
-    // Загрузка изображений через TinyMCE
-    images_upload_handler: function (blobInfo, progress) {
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '{{ url_for("upload_image") }}');
-
-            xhr.onload = function () {
-                if (xhr.status === 200) {
-                    const json = JSON.parse(xhr.responseText);
-                    if (json.location) {
-                        resolve(json.location);
-                    } else {
-                        reject('Ошибка: нет location в ответе сервера');
-                    }
-                } else {
-                    reject('HTTP ошибка: ' + xhr.status);
-                }
-            };
-
-            xhr.onerror = () => reject('Ошибка сети');
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) progress(Math.round((e.loaded / e.total) * 100));
-            };
-
-            const formData = new FormData();
-            formData.append('file', blobInfo.blob(), blobInfo.filename);
-            xhr.send(formData);
-        });
-    },
-
-    setup: function (editor) {
-        editor.on('change', function () {
-            updatePreview();
-            saveDraft();
-        });
-        editor.on('init', function () {
-            updatePreview();
-        });
-    }
-});
-
-// Предпросмотр
-function updatePreview() {
-    const content = tinymce.get('postContent').getContent() || '';
-    document.getElementById('preview').innerHTML = content;
-}
-
-// Автосохранение черновика редактирования
-function saveDraft() {
-    const draft = {
-        post_id: {{ post.id }},
-        title: document.getElementById('title').value.trim(),
-        content: tinymce.get('postContent').getContent(),
-        community: document.getElementById('community_id').value,
-        timestamp: new Date().toISOString()
-    };
-    if (draft.title || draft.content) {
-        localStorage.setItem(`edit_post_draft_${draft.post_id}`, JSON.stringify(draft));
-    }
-}
-
-function loadDraft() {
-    const key = `edit_post_draft_${{{ post.id }}}`;
-    const draftStr = localStorage.getItem(key);
-    if (!draftStr) return;
-
-    const draft = JSON.parse(draftStr);
-    const draftTime = new Date(draft.timestamp);
-    const now = new Date();
-    const hoursDiff = (now - draftTime) / (3600 * 1000);
-
-    if (hoursDiff < 24 && (draft.title || draft.content)) {
-        if (confirm(`Найден черновик редактирования от ${draftTime.toLocaleString('ru-RU')}. Восстановить?`)) {
-            document.getElementById('title').value = draft.title || '{{ post.title }}';
-            tinymce.get('postContent').setContent(draft.content || '{{ post.content | safe }}');
-            document.getElementById('community_id').value = draft.community || '{{ post.community_id or "" }}';
-            updatePreview();
-        } else {
-            localStorage.removeItem(key);
+      xhr.onload = function() {
+        if (xhr.status === 401) {
+          reject({ message: 'Сессия истекла — войдите заново', remove: true });
+          return;
         }
-    } else {
-        localStorage.removeItem(key);
-    }
-}
-
-function clearDraft() {
-    if (confirm('Отменить все изменения и очистить черновик?')) {
-        document.getElementById('title').value = '{{ post.title }}';
-        tinymce.get('postContent').setContent('{{ post.content | safe }}');
-        document.getElementById('community_id').value = '{{ post.community_id or "" }}';
-        selectedFiles = [];
-        renderPreview();
-        updatePreview();
-        localStorage.removeItem(`edit_post_draft_${{{ post.id }}}`);
-    }
-}
-
-// Обработка загрузки файлов (drag & drop + input)
-const dropArea = document.getElementById('drop-area');
-const fileInput = document.getElementById('images');
-
-['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    dropArea.addEventListener(eventName, preventDefaults, false);
-});
-
-function preventDefaults(e) {
-    e.preventDefault();
-    e.stopPropagation();
-}
-
-['dragenter', 'dragover'].forEach(eventName => {
-    dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
-});
-
-['dragleave', 'drop'].forEach(eventName => {
-    dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
-});
-
-dropArea.addEventListener('drop', handleDrop, false);
-fileInput.addEventListener('change', handleFiles, false);
-
-function handleDrop(e) {
-    const dt = e.dataTransfer;
-    handleFiles({ target: { files: dt.files } });
-}
-
-function handleFiles(e) {
-    const files = [...e.target.files];
-    files.forEach(file => {
-        if (file.type.startsWith('image/') && file.size <= 5 * 1024 * 1024) {
-            selectedFiles.push(file);
-            displayPreview(file);
-        } else {
-            alert(`Файл ${file.name} недопустим (только изображения до 5MB)`);
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject('Ошибка загрузки: HTTP ' + xhr.status);
+          return;
         }
+        try {
+          var json = JSON.parse(xhr.responseText);
+          if (!json.location) { reject('Сервер не вернул URL'); return; }
+          resolve(json.location);
+        } catch(e) {
+          reject('Неверный ответ сервера');
+        }
+      };
+
+      xhr.onerror = function() { reject('Сетевая ошибка при загрузке'); };
+      xhr.send(fd);
     });
-
-    const dataTransfer = new DataTransfer();
-    selectedFiles.forEach(f => dataTransfer.items.add(f));
-    fileInput.files = dataTransfer.files;
-}
-
-function displayPreview(file) {
-    const preview = document.getElementById('image-preview');
-    const reader = new FileReader();
-    reader.onload = e => {
-        const item = document.createElement('div');
-        item.className = 'preview-item';
-        item.innerHTML = `
-            <img src="${e.target.result}" alt="${file.name}">
-            <button class="remove-btn" onclick="removeFile('${file.name}')">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
-        preview.appendChild(item);
-    };
-    reader.readAsDataURL(file);
-}
-
-function removeFile(fileName) {
-    selectedFiles = selectedFiles.filter(f => f.name !== fileName);
-    const dataTransfer = new DataTransfer();
-    selectedFiles.forEach(f => dataTransfer.items.add(f));
-    fileInput.files = dataTransfer.files;
-    renderPreview();
-}
-
-function renderPreview() {
-    const preview = document.getElementById('image-preview');
-    preview.innerHTML = '';
-    selectedFiles.forEach(displayPreview);
-}
-
-// Валидация формы
-document.getElementById('post-form').addEventListener('submit', e => {
-    const title = document.getElementById('title').value.trim();
-    const content = tinymce.get('postContent').getContent().trim();
-
-    if (!title) {
-        e.preventDefault();
-        alert('Введите заголовок');
-        return false;
-    }
-    if (!content || content === '<p><br data-mce-bogus="1"></p>') {
-        e.preventDefault();
-        alert('Введите содержание поста');
-        return false;
-    }
+  }
 });
 
-// Инициализация
-window.addEventListener('load', () => {
-    loadDraft();
-    updatePreview();
+document.getElementById('editTitle').addEventListener('input', function() {
+  document.getElementById('titleCount').textContent = this.value.length;
 });
 
-// Очистка черновика после успешного сохранения
-if (document.querySelector('.alert-success')) {
-    localStorage.removeItem(`edit_post_draft_${{{ post.id }}}`);
-}
+document.getElementById('editForm').addEventListener('submit', function(e) {
+  var ed = tinymce.get('editContent');
+  if (ed) ed.save();   // sync to textarea
+
+  var title   = document.getElementById('editTitle').value.trim();
+  var content = ed ? ed.getContent().replace(/<[^>]*>/g, '').trim() : '';
+  if (!title)   { e.preventDefault(); alert('Введите заголовок'); return; }
+  if (!content) { e.preventDefault(); alert('Содержание не может быть пустым'); return; }
+});
 </script>
-
-<style>
-/* Стили можно взять из create_post.html или оставить прежние */
-.edit-post-container {
-    max-width: 900px;
-    margin: 0 auto;
-}
-
-.edit-post-header {
-    text-align: center;
-    margin-bottom: 24px;
-}
-
-.edit-post-header h2 {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--primary-color);
-}
-
-.create-post-card {
-    background: var(--bg-card);
-    border-radius: var(--radius);
-    padding: 30px;
-    border: 1px solid var(--border-light);
-    box-shadow: var(--shadow-sm);
-}
-
-/* ... остальные стили для .form-group, .preview-section, .image-preview и т.д. ... */
-</style>
 {% endblock %}

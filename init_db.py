@@ -1,6 +1,7 @@
 # file_path: init_db.py
 import sqlite3
 import hashlib
+from werkzeug.security import generate_password_hash
 import os
 import sys
 
@@ -191,7 +192,7 @@ def init_database():
         print("Creating admin and moderator...")
 
         # Создаем админа
-        admin_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+        admin_hash = generate_password_hash('admin123')
         cursor.execute(
             "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
             ('admin', 'admin@example.com', admin_hash, 'admin')
@@ -200,7 +201,7 @@ def init_database():
         print(f"Admin created with ID: {admin_id} (login: admin, password: admin123)")
 
         # Создаем модератора
-        mod_hash = hashlib.sha256('mod123'.encode()).hexdigest()
+        mod_hash = generate_password_hash('mod123')
         cursor.execute(
             "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
             ('moderator', 'mod@example.com', mod_hash, 'moderator')
@@ -319,6 +320,18 @@ def update_database():
     cursor = conn.cursor()
 
     try:
+
+        # bio и avatar_color для профиля
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
+            print("Added column bio to users table")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN avatar_color TEXT DEFAULT '#e8402a'")
+            print("Added column avatar_color to users table")
+        except:
+            pass
         # Добавляем поле role в users
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
@@ -420,7 +433,7 @@ def update_database():
         cursor.execute("SELECT id FROM users WHERE role = 'admin'")
         if not cursor.fetchone():
             print("No admin found, creating default admin...")
-            admin_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+            admin_hash = generate_password_hash('admin123')
             cursor.execute(
                 "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
                 ('admin', 'admin@example.com', admin_hash, 'admin')
@@ -431,7 +444,7 @@ def update_database():
         cursor.execute("SELECT id FROM users WHERE role = 'moderator'")
         if not cursor.fetchone():
             print("No moderator found, creating default moderator...")
-            mod_hash = hashlib.sha256('mod123'.encode()).hexdigest()
+            mod_hash = generate_password_hash('mod123')
             cursor.execute(
                 "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
                 ('moderator', 'mod@example.com', mod_hash, 'moderator')
@@ -522,6 +535,35 @@ def show_database_status():
 
     conn.close()
 
+
+# Добавьте после создания таблиц в init_db.py
+
+def create_indexes():
+    """Создает индексы для ускорения запросов"""
+    conn = sqlite3.connect('instance/app.db')
+    cursor = conn.cursor()
+
+    print("Creating indexes...")
+
+    # Индексы для таблицы posts
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_community ON posts(community_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_deleted ON posts(is_deleted)')
+
+    # Индексы для таблицы votes
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_votes_user ON votes(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_votes_post ON votes(post_id)')
+
+    # Индексы для таблицы bookmarks
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id)')
+
+    # Индексы для таблицы comments
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)')
+
+    conn.commit()
+    conn.close()
+    print("Indexes created successfully!")
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
