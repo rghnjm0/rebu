@@ -1,64 +1,46 @@
 {% extends "base.html" %}
-
-{% block title %}Создание сообщества - Мини Reddit/Pikabu{% endblock %}
+{% block title %}Создать сообщество — Rebu{% endblock %}
 
 {% block content %}
-<div class="create-community">
-    <h2>Создать новое сообщество</h2>
-
-    <div class="community-guide">
-        <h3>Правила создания сообществ:</h3>
-        <ul>
-            <li>Имя сообщества должно содержать только латинские буквы, цифры и нижнее подчеркивание</li>
-            <li>Имя должно быть от 3 до 20 символов</li>
-            <li>Рекомендуем создавать сообщества на интересующие вас темы</li>
-            <li>Будьте активным модератором своего сообщества</li>
-        </ul>
-    </div>
-
-    <form method="POST" action="{{ url_for('create_community') }}">
-        <div class="form-group">
-            <label for="name">
-                Имя сообщества: <span class="required">*</span>
-                <small>(например: programming, games, movies)</small>
-            </label>
-            <div class="input-with-prefix">
-                <span class="prefix">r/</span>
-                <input type="text" id="name" name="name" required
-                       pattern="[a-zA-Z0-9_]{3,20}"
-                       title="Только латинские буквы, цифры и _, от 3 до 20 символов"
-                       placeholder="название">
-            </div>
+<div style="max-width:560px">
+  <div class="page-hdr">
+    <h1><i class="fas fa-users" style="color:var(--accent)"></i> Создать сообщество</h1>
+  </div>
+  <div class="card">
+    <form method="POST">
+      <div class="form-group">
+        <label class="form-label">Название (URL) <span class="req">*</span></label>
+        <div style="display:flex;align-items:center;gap:0">
+          <span style="padding:10px 12px;background:var(--bg-input);border:1.5px solid var(--border);border-right:none;border-radius:var(--r) 0 0 var(--r);font-size:14px;color:var(--text-3)">r/</span>
+          <input type="text" name="name" class="form-input" style="border-radius:0 var(--r) var(--r) 0"
+                 placeholder="название_сообщества" required pattern="[a-zA-Z0-9_]{3,20}"
+                 title="3-20 символов: латиница, цифры, _">
         </div>
+        <div class="form-hint">3–20 символов, только латиница, цифры и _</div>
+      </div>
 
-        <div class="form-group">
-            <label for="display_name">
-                Отображаемое имя: <span class="required">*</span>
-                <small>(будет отображаться на странице сообщества)</small>
-            </label>
-            <input type="text" id="display_name" name="display_name" required
-                   maxlength="50" placeholder="Например: Программирование">
+      <div class="form-group">
+        <label class="form-label">Отображаемое название <span class="req">*</span></label>
+        <input type="text" name="display_name" class="form-input" placeholder="Название для отображения" required maxlength="100">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Описание</label>
+        <textarea name="description" class="form-textarea" placeholder="О чём это сообщество?" maxlength="500"></textarea>
+      </div>
+
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input type="checkbox" id="is_public" name="is_public" checked>
+          <label for="is_public">Публичное сообщество (видно всем)</label>
         </div>
+      </div>
 
-        <div class="form-group">
-            <label for="description">
-                Описание:
-                <small>(расскажите, о чем это сообщество)</small>
-            </label>
-            <textarea id="description" name="description" rows="4"
-                      maxlength="500" placeholder="Описание вашего сообщества..."></textarea>
-        </div>
-
-        <div class="form-group">
-            <label class="checkbox-label">
-                <input type="checkbox" id="is_public" name="is_public" checked>
-                <span>Публичное сообщество</span>
-                <small>(все могут видеть посты и подписываться)</small>
-            </label>
-        </div>
-
-        <button type="submit" class="btn btn-primary">Создать сообщество</button>
-        <a href="{{ url_for('communities_list') }}" class="btn btn-secondary">Отмена</a>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-plus"></i> Создать</button>
+        <a href="{{ url_for('communities_list') }}" class="btn btn-ghost">Отмена</a>
+      </div>
     </form>
+  </div>
 </div>
 {% endblock %}

@@ -1,38 +1,36 @@
-# file_path: init_db.py
 import sqlite3
 import hashlib
+from werkzeug.security import generate_password_hash
 import os
 import sys
 
 
 def init_database():
-    # Создаем папку если её нет
     if not os.path.exists('instance'):
         os.makedirs('instance')
-
     print("=== INITIALIZING DATABASE ===")
-
     conn = sqlite3.connect('instance/app.db')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
-    # Таблица пользователей с ролью
     print("Creating users table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
+        display_name TEXT,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         role TEXT DEFAULT 'user',
         is_banned BOOLEAN DEFAULT 0,
         ban_reason TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        karma INTEGER DEFAULT 0
+        karma INTEGER DEFAULT 0,
+        bio TEXT DEFAULT '',
+        avatar_color TEXT DEFAULT '#e8402a'
     )
     ''')
 
-    # Таблица сообществ
     print("Creating communities table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS communities (
@@ -48,7 +46,6 @@ def init_database():
     )
     ''')
 
-    # Таблица подписок
     print("Creating community_subscriptions table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS community_subscriptions (
@@ -62,7 +59,6 @@ def init_database():
     )
     ''')
 
-    # Таблица постов
     print("Creating posts table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS posts (
@@ -85,7 +81,6 @@ def init_database():
     )
     ''')
 
-    # Таблица комментариев
     print("Creating comments table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS comments (
@@ -94,6 +89,8 @@ def init_database():
         user_id INTEGER NOT NULL,
         post_id INTEGER NOT NULL,
         parent_id INTEGER,
+        upvotes INTEGER DEFAULT 0,
+        downvotes INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_deleted BOOLEAN DEFAULT 0,
         deleted_by INTEGER,
@@ -105,7 +102,6 @@ def init_database():
     )
     ''')
 
-    # Таблица голосов
     print("Creating votes table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS votes (
@@ -119,7 +115,20 @@ def init_database():
     )
     ''')
 
-    # Таблица закладок
+    print("Creating comment_votes table...")
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS comment_votes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        comment_id INTEGER NOT NULL,
+        vote_type TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, comment_id),
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (comment_id) REFERENCES comments (id)
+    )
+    ''')
+
     print("Creating bookmarks table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS bookmarks (
@@ -133,7 +142,6 @@ def init_database():
     )
     ''')
 
-    # Таблица жалоб
     print("Creating reports table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS reports (
@@ -152,24 +160,6 @@ def init_database():
     )
     ''')
 
-    # Таблица пользователей с ролью
-    print("Creating users table...")
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        display_name TEXT,  -- добавлено это поле
-        role TEXT DEFAULT 'user',
-        is_banned BOOLEAN DEFAULT 0,
-        ban_reason TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        karma INTEGER DEFAULT 0
-    )
-    ''')
-
-    # Таблица банов пользователей
     print("Creating user_bans table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS user_bans (
@@ -185,54 +175,6 @@ def init_database():
     )
     ''')
 
-    # Добавьте в функцию init_database() и update_database()
-
-    # Таблица тегов
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS tags (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-
-    # Таблица связей постов с тегами
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS post_tags (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        post_id INTEGER NOT NULL,
-        tag_id INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(post_id, tag_id),
-        FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
-        FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE
-    )
-    ''')
-
-    # Индексы для ускорения поиска
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_tags_post ON post_tags(post_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_tags_tag ON post_tags(tag_id)')
-
-    # Таблица реакций на посты
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS post_reactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        post_id INTEGER NOT NULL,
-        reaction_type TEXT NOT NULL,  -- 'like', 'love', 'laugh', 'sad', 'angry', 'fire', etc.
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, post_id),
-        FOREIGN KEY (user_id) REFERENCES users (id),
-        FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE
-    )
-    ''')
-
-    # Индексы
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_reactions_post ON post_reactions(post_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_reactions_user ON post_reactions(user_id)')
-
-    # Таблица логов действий
     print("Creating moderation_logs table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS moderation_logs (
@@ -247,32 +189,27 @@ def init_database():
     )
     ''')
 
-    # Проверяем, есть ли пользователи
     cursor.execute("SELECT COUNT(*) FROM users")
     user_count = cursor.fetchone()[0]
 
     if user_count == 0:
         print("Creating admin and moderator...")
-
-        # Создаем админа
-        admin_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+        admin_hash = generate_password_hash('admin123')
         cursor.execute(
-            "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
-            ('admin', 'admin@example.com', admin_hash, 'admin')
+            "INSERT INTO users (username, display_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)",
+            ('admin', 'Administrator', 'admin@example.com', admin_hash, 'admin')
         )
         admin_id = cursor.lastrowid
         print(f"Admin created with ID: {admin_id} (login: admin, password: admin123)")
 
-        # Создаем модератора
-        mod_hash = hashlib.sha256('mod123'.encode()).hexdigest()
+        mod_hash = generate_password_hash('mod123')
         cursor.execute(
-            "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
-            ('moderator', 'mod@example.com', mod_hash, 'moderator')
+            "INSERT INTO users (username, display_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)",
+            ('moderator', 'Moderator', 'mod@example.com', mod_hash, 'moderator')
         )
         mod_id = cursor.lastrowid
         print(f"Moderator created with ID: {mod_id} (login: moderator, password: mod123)")
 
-        # Создаем тестовое сообщество (принадлежит админу)
         print("Creating test community...")
         cursor.execute(
             "INSERT INTO communities (name, display_name, description, owner_id) VALUES (?, ?, ?, ?)",
@@ -281,7 +218,6 @@ def init_database():
         community_id = cursor.lastrowid
         print(f"Test community created with ID: {community_id}")
 
-        # Подписываем админа и модератора
         cursor.execute(
             "INSERT INTO community_subscriptions (user_id, community_id) VALUES (?, ?)",
             (admin_id, community_id)
@@ -295,11 +231,10 @@ def init_database():
             (community_id,)
         )
 
-        # Создаем тестовые посты
         cursor.execute(
             "INSERT INTO posts (title, content, user_id, community_id) VALUES (?, ?, ?, ?)",
-            ('Добро пожаловать в MiniReddit!',
-             'Это тестовый пост от администратора. Вы можете создавать свои собственные посты, комментировать и голосовать.',
+            ('Добро пожаловать в Rebu!',
+             '<p>Это тестовый пост от администратора. Вы можете создавать свои собственные посты, комментировать и голосовать.</p><p>Попробуйте <strong>ответить на комментарий</strong> — это новая функция!</p>',
              admin_id, community_id)
         )
         post_id = cursor.lastrowid
@@ -307,65 +242,64 @@ def init_database():
         cursor.execute(
             "INSERT INTO posts (title, content, user_id, community_id) VALUES (?, ?, ?, ?)",
             ('Пост от модератора',
-             'Это пост созданный модератором для демонстрации функционала.',
+             '<p>Это пост созданный модератором для демонстрации функционала.</p><p>Здесь можно использовать <strong>форматирование</strong> и даже <a href="#">ссылки</a>.</p>',
              mod_id, community_id)
         )
         mod_post_id = cursor.lastrowid
 
-        # Создаем комментарии
         cursor.execute(
             "INSERT INTO comments (content, user_id, post_id) VALUES (?, ?, ?)",
             ('Первый комментарий от администратора!', admin_id, post_id)
         )
+        comment1_id = cursor.lastrowid
+
+        cursor.execute(
+            "INSERT INTO comments (content, user_id, post_id, parent_id) VALUES (?, ?, ?, ?)",
+            ('Ответ на комментарий администратора от модератора. Это демонстрация вложенных комментариев!',
+             mod_id, post_id, comment1_id)
+        )
+
         cursor.execute(
             "INSERT INTO comments (content, user_id, post_id) VALUES (?, ?, ?)",
-            ('Комментарий от модератора', mod_id, post_id)
+            ('Еще один комментарий от модератора', mod_id, post_id)
         )
+
         cursor.execute(
-            "UPDATE posts SET comments_count = 2 WHERE id = ?",
+            "UPDATE posts SET comments_count = 3 WHERE id = ?",
             (post_id,)
         )
 
-        # Создаем тестовую жалобу (для демонстрации)
         cursor.execute('''
             INSERT INTO reports (reporter_id, content_type, content_id, reason, description)
             VALUES (?, ?, ?, ?, ?)
-        ''', (mod_id, 'comment', 1, 'spam', 'Тестовая жалоба для демонстрации'))
+        ''', (mod_id, 'comment', comment1_id, 'spam', 'Тестовая жалоба для демонстрации'))
 
         conn.commit()
         print("Test data created successfully!")
 
     conn.commit()
 
-    # Проверяем содержимое базы данных
     print("\n=== DATABASE CHECK ===")
-
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
     tables = cursor.fetchall()
     print(f"Tables created: {[t[0] for t in tables]}")
-
-    cursor.execute("SELECT id, username, role FROM users")
+    cursor.execute("SELECT id, username, display_name, role FROM users")
     users = cursor.fetchall()
     print(f"\nUsers in database:")
     for user in users:
-        print(f"  ID: {user[0]}, Username: {user[1]}, Role: {user[2]}")
-
+        print(f"  ID: {user[0]}, Username: {user[1]}, Display Name: {user[2]}, Role: {user[3]}")
     cursor.execute("SELECT COUNT(*) FROM communities")
     communities = cursor.fetchone()[0]
     print(f"\nCommunities in database: {communities}")
-
     cursor.execute("SELECT COUNT(*) FROM posts")
     posts = cursor.fetchone()[0]
     print(f"Posts in database: {posts}")
-
     cursor.execute("SELECT COUNT(*) FROM comments")
     comments = cursor.fetchone()[0]
     print(f"Comments in database: {comments}")
-
     cursor.execute("SELECT COUNT(*) FROM reports WHERE status='pending'")
     pending_reports = cursor.fetchone()[0]
     print(f"Pending reports: {pending_reports}")
-
     conn.close()
     print("\n=== DATABASE INITIALIZATION COMPLETE ===")
     print("Test credentials:")
@@ -375,69 +309,113 @@ def init_database():
 
 
 def update_database():
-    """Добавляет недостающие таблицы в существующую базу данных"""
     print("=== UPDATING DATABASE ===")
-
     conn = sqlite3.connect('instance/app.db')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-
     try:
-        # Добавляем поле role в users
+        # Добавляем display_name в users
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+            print("Added column display_name to users table")
+            cursor.execute("UPDATE users SET display_name = username WHERE display_name IS NULL")
+            conn.commit()
+        except:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
+            print("Added column bio to users table")
+        except:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN avatar_color TEXT DEFAULT '#e8402a'")
+            print("Added column avatar_color to users table")
+        except:
+            pass
+
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
             print("Added column role to users table")
-        except sqlite3.OperationalError:
-            print("Column role already exists in users")
+        except:
+            pass
 
-        # Добавляем поле is_banned в users
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT 0")
             print("Added column is_banned to users table")
-        except sqlite3.OperationalError:
-            print("Column is_banned already exists in users")
+        except:
+            pass
 
-        # Добавляем поле ban_reason в users
         try:
             cursor.execute("ALTER TABLE users ADD COLUMN ban_reason TEXT")
             print("Added column ban_reason to users table")
-        except sqlite3.OperationalError:
-            print("Column ban_reason already exists in users")
+        except:
+            pass
 
-        # Добавляем поля deleted_by и deleted_at в posts
+        try:
+            cursor.execute("ALTER TABLE posts ADD COLUMN is_deleted BOOLEAN DEFAULT 0")
+            print("Added column is_deleted to posts table")
+        except:
+            pass
+
         try:
             cursor.execute("ALTER TABLE posts ADD COLUMN deleted_by INTEGER REFERENCES users(id)")
             print("Added column deleted_by to posts table")
-        except sqlite3.OperationalError:
-            print("Column deleted_by already exists in posts")
+        except:
+            pass
 
         try:
             cursor.execute("ALTER TABLE posts ADD COLUMN deleted_at TIMESTAMP")
             print("Added column deleted_at to posts table")
-        except sqlite3.OperationalError:
-            print("Column deleted_at already exists in posts")
+        except:
+            pass
 
-        # Добавляем поля deleted_by и deleted_at в comments
+        try:
+            cursor.execute("ALTER TABLE comments ADD COLUMN is_deleted BOOLEAN DEFAULT 0")
+            print("Added column is_deleted to comments table")
+        except:
+            pass
+
         try:
             cursor.execute("ALTER TABLE comments ADD COLUMN deleted_by INTEGER REFERENCES users(id)")
             print("Added column deleted_by to comments table")
-        except sqlite3.OperationalError:
-            print("Column deleted_by already exists in comments")
+        except:
+            pass
 
         try:
             cursor.execute("ALTER TABLE comments ADD COLUMN deleted_at TIMESTAMP")
             print("Added column deleted_at to comments table")
-        except sqlite3.OperationalError:
-            print("Column deleted_at already exists in comments")
+        except:
+            pass
 
-        # Добавляем поле display_name в users, если его нет
         try:
-            cursor.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
-            print("Added column display_name to users table")
-        except sqlite3.OperationalError:
-            print("Column display_name already exists in users")
+            cursor.execute("ALTER TABLE comments ADD COLUMN parent_id INTEGER REFERENCES comments(id)")
+            print("Added column parent_id to comments table")
+        except:
+            pass
 
-        # Создаем таблицу user_bans
+        try:
+            cursor.execute("ALTER TABLE comments ADD COLUMN upvotes INTEGER DEFAULT 0")
+            cursor.execute("ALTER TABLE comments ADD COLUMN downvotes INTEGER DEFAULT 0")
+            print("Added upvotes/downvotes to comments table")
+        except:
+            pass
+
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS comment_votes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            comment_id INTEGER NOT NULL,
+            vote_type TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, comment_id),
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (comment_id) REFERENCES comments (id)
+        )
+        ''')
+        print("Table comment_votes created or already exists")
+
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_bans (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -453,7 +431,6 @@ def update_database():
         ''')
         print("Table user_bans created or already exists")
 
-        # Создаем таблицу moderation_logs
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS moderation_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -468,7 +445,6 @@ def update_database():
         ''')
         print("Table moderation_logs created or already exists")
 
-        # Создаем таблицу reports если её нет
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -487,76 +463,71 @@ def update_database():
         ''')
         print("Table reports created or already exists")
 
-        # Проверяем наличие админа
+        print("Creating indexes...")
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_community ON posts(community_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_comment_votes_comment ON comment_votes(comment_id)')
+        print("Indexes created successfully")
+
         cursor.execute("SELECT id FROM users WHERE role = 'admin'")
         if not cursor.fetchone():
             print("No admin found, creating default admin...")
-            admin_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+            admin_hash = generate_password_hash('admin123')
             cursor.execute(
-                "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
-                ('admin', 'admin@example.com', admin_hash, 'admin')
+                "INSERT INTO users (username, display_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)",
+                ('admin', 'Administrator', 'admin@example.com', admin_hash, 'admin')
             )
             print("Default admin created: admin / admin123")
 
-        # Проверяем наличие модератора
         cursor.execute("SELECT id FROM users WHERE role = 'moderator'")
         if not cursor.fetchone():
             print("No moderator found, creating default moderator...")
-            mod_hash = hashlib.sha256('mod123'.encode()).hexdigest()
+            mod_hash = generate_password_hash('mod123')
             cursor.execute(
-                "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
-                ('moderator', 'mod@example.com', mod_hash, 'moderator')
+                "INSERT INTO users (username, display_name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)",
+                ('moderator', 'Moderator', 'mod@example.com', mod_hash, 'moderator')
             )
             print("Default moderator created: moderator / mod123")
 
         conn.commit()
-
         print("\n=== DATABASE UPDATE COMPLETE ===")
-
     except Exception as e:
         print(f"Error updating database: {e}")
         import traceback
         traceback.print_exc()
-
     finally:
         conn.close()
 
 
 def reset_database():
-    """Полностью сбрасывает базу данных"""
     print("=== RESETTING DATABASE ===")
-
     if os.path.exists('instance/app.db'):
         os.remove('instance/app.db')
         print("Old database removed")
-
     init_database()
 
 
 def show_database_status():
-    """Показывает текущее состояние базы данных"""
     if not os.path.exists('instance/app.db'):
         print("Database does not exist!")
         return
-
     conn = sqlite3.connect('instance/app.db')
     cursor = conn.cursor()
-
     print("=== DATABASE STATUS ===")
-
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
     tables = cursor.fetchall()
     print(f"Tables ({len(tables)}):")
     for table in tables:
         print(f"  - {table[0]}")
-
     print("\n=== USERS ===")
-    cursor.execute("SELECT id, username, role, is_banned, created_at FROM users")
+    cursor.execute("SELECT id, username, display_name, role, is_banned, created_at FROM users")
     users = cursor.fetchall()
     for user in users:
-        banned = " [BANNED]" if user[3] else ""
-        print(f"  ID: {user[0]}, Username: {user[1]}, Role: {user[2]}{banned}, Created: {user[4]}")
-
+        banned = " [BANNED]" if user[4] else ""
+        print(f"  ID: {user[0]}, Username: {user[1]}, Display: {user[2]}, Role: {user[3]}{banned}, Created: {user[5]}")
     print("\n=== COMMUNITIES ===")
     cursor.execute('''
         SELECT c.id, c.name, c.display_name, u.username, c.subscribers_count
@@ -566,62 +537,21 @@ def show_database_status():
     communities = cursor.fetchall()
     for c in communities:
         print(f"  ID: {c[0]}, Name: {c[1]}, Owner: {c[3]}, Subscribers: {c[4]}")
-
-    print("\n=== REPORTS ===")
+    print("\n=== COMMENTS (with nesting) ===")
     cursor.execute('''
-        SELECT r.id, r.content_type, r.content_id, r.reason, r.status, u.username
-        FROM reports r
-        JOIN users u ON r.reporter_id = u.id
-        WHERE r.status = 'pending'
+        SELECT c.id, c.content[:50] as content, u.username, 
+               c.parent_id, c.post_id
+        FROM comments c
+        JOIN users u ON c.user_id = u.id
+        ORDER BY c.created_at DESC
+        LIMIT 10
     ''')
-    reports = cursor.fetchall()
-    for r in reports:
-        print(f"  ID: {r[0]}, Type: {r[1]}, Reason: {r[3]}, Reporter: {r[5]}")
-
-    print("\n=== POSTS ===")
-    cursor.execute('''
-        SELECT p.id, p.title, u.username, p.created_at, p.is_deleted
-        FROM posts p
-        JOIN users u ON p.user_id = u.id
-        ORDER BY p.created_at DESC
-        LIMIT 5
-    ''')
-    posts = cursor.fetchall()
-    for p in posts:
-        deleted = " [DELETED]" if p[4] else ""
-        print(f"  ID: {p[0]}, Title: {p[1][:30]}..., Author: {p[2]}{deleted}")
-
+    comments = cursor.fetchall()
+    for c in comments:
+        parent = f" (reply to {c[3]})" if c[3] else ""
+        print(f"  ID: {c[0]}, Author: {c[2]}, Content: {c[1]}{parent}")
     conn.close()
 
-
-# Добавьте после создания таблиц в init_db.py
-
-def create_indexes():
-    """Создает индексы для ускорения запросов"""
-    conn = sqlite3.connect('instance/app.db')
-    cursor = conn.cursor()
-
-    print("Creating indexes...")
-
-    # Индексы для таблицы posts
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_community ON posts(community_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_posts_deleted ON posts(is_deleted)')
-
-    # Индексы для таблицы votes
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_votes_user ON votes(user_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_votes_post ON votes(post_id)')
-
-    # Индексы для таблицы bookmarks
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id)')
-
-    # Индексы для таблицы comments
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id)')
-
-    conn.commit()
-    conn.close()
-    print("Indexes created successfully!")
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

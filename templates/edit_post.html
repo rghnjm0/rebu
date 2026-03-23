@@ -1,552 +1,309 @@
-<!-- templates/edit_post.html -->
 {% extends "base.html" %}
-
-{% block title %}Редактировать пост - MiniReddit{% endblock %}
+{% block title %}Редактировать: {{ post.title }} — Rebu{% endblock %}
 
 {% block content %}
-<div class="edit-post-container">
-    <div class="edit-post-header">
-        <h2>Редактировать пост</h2>
-        <p class="subtitle">Измените содержимое поста</p>
+<div class="feed-wrap">
+<div class="page-hdr">
+  <h1>Редактировать пост</h1>
+</div>
+
+<div class="card">
+  <form method="POST" id="editForm" enctype="multipart/form-data">
+    <div class="form-group">
+      <label class="form-label" for="editTitle">
+        Заголовок <span class="req">*</span>
+      </label>
+      <input type="text" name="title" id="editTitle" class="form-input"
+             value="{{ post.title }}" required maxlength="300" autocomplete="off">
+      <div class="form-hint"><span id="titleCount">{{ post.title | length }}</span> / 300</div>
     </div>
 
-    <div class="edit-post-card">
-        <form method="POST" action="{{ url_for('edit_post', post_id=post.id) }}" enctype="multipart/form-data" id="post-form">
-            <div class="form-section">
-                <div class="form-group">
-                    <label for="community_id">
-                        <i class="fas fa-users"></i>
-                        Сообщество:
-                    </label>
-                    <select id="community_id" name="community_id" class="form-control">
-                        <option value="">Общая лента</option>
-                        {% for community in communities %}
-                        <option value="{{ community.id }}" {% if post.community_id == community.id %}selected{% endif %}>
-                            r/{{ community.name }} - {{ community.display_name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="title">
-                        <i class="fas fa-heading"></i>
-                        Заголовок: <span class="required">*</span>
-                    </label>
-                    <input type="text" id="title" name="title" value="{{ post.title }}" required maxlength="200"
-                           placeholder="Заголовок поста" class="form-control">
-                </div>
-
-                <div class="form-group">
-                    <label for="content">
-                        <i class="fas fa-align-left"></i>
-                        Содержание: <span class="required">*</span>
-                    </label>
-                    <textarea id="content" name="content" rows="12" class="form-control" required>{{ post.content }}</textarea>
-                    <small class="form-text">Поддерживаются Markdown и хэштеги (#тег)</small>
-                </div>
-
-                <!-- Блок с текущими тегами -->
-                {% if post_tags %}
-                <div class="form-group">
-                    <label><i class="fas fa-tags"></i> Текущие теги:</label>
-                    <div class="tags-container">
-                        {% for tag in post_tags %}
-                        <span class="tag-badge">#{{ tag.name }}</span>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-
-                <!-- Существующие изображения -->
-                {% if existing_images %}
-                <div class="form-group">
-                    <label>Текущие изображения в посте:</label>
-                    <div class="existing-images-grid">
-                        {% for img in existing_images %}
-                        <div class="existing-image-item">
-                            <img src="{{ img.url }}" alt="Изображение">
-                            <div class="image-filename">{{ img.filename }}</div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    <small class="form-text">Изображения сохраняются автоматически.</small>
-                </div>
-                {% endif %}
-
-                <!-- Загрузка новых изображений -->
-                <div class="form-group">
-                    <label for="images">
-                        <i class="fas fa-images"></i>
-                        Добавить новые изображения:
-                    </label>
-                    <div class="image-upload-area" id="drop-area">
-                        <input type="file" id="images" name="images"
-                               accept="image/*" multiple class="file-input">
-                        <div class="upload-message">
-                            <i class="fas fa-cloud-upload-alt"></i>
-                            <p>Перетащите файлы сюда или кликните для выбора</p>
-                            <small>Поддерживаются JPG, PNG, GIF (макс. 5 МБ на файл)</small>
-                        </div>
-                    </div>
-                    <div id="image-preview" class="image-preview"></div>
-                </div>
-
-                <!-- Предпросмотр загруженных изображений -->
-                <div class="preview-section">
-                    <h3><i class="fas fa-eye"></i> Предпросмотр загруженных изображений</h3>
-                    <div id="image-gallery-preview" class="image-gallery"></div>
-                </div>
-            </div>
-
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save"></i> Сохранить изменения
-                </button>
-                <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-outline">
-                    <i class="fas fa-times"></i> Отмена
-                </a>
-            </div>
-        </form>
+    <div class="form-group">
+      <label class="form-label">Содержание <span class="req">*</span></label>
+      <textarea id="editContent" name="content">{{ post.content | safe }}</textarea>
     </div>
+
+    <!-- Область загрузки изображений -->
+    <div class="form-group">
+      <label class="form-label">Добавить изображения</label>
+      <div class="upload-zone" id="uploadZone">
+        <i class="fas fa-cloud-upload-alt"></i>
+        <p>Перетащите изображения сюда или нажмите для выбора</p>
+        <small>Поддерживаются: PNG, JPG, JPEG, GIF, WEBP (до 16 МБ)</small>
+        <input type="file" id="fileInput" multiple accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
+      </div>
+      <div class="img-previews" id="imagePreviews"></div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-floppy-disk"></i> Сохранить изменения
+      </button>
+      <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-ghost">Отмена</a>
+    </div>
+  </form>
+</div>
 </div>
 
 <style>
-.edit-post-container {
-    max-width: 900px;
-    margin: 0 auto;
-}
-
-.edit-post-header {
-    text-align: center;
-    margin-bottom: 24px;
-}
-
-.edit-post-header h2 {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--primary-color);
-    margin-bottom: 8px;
-}
-
-.edit-post-header .subtitle {
-    color: var(--text-secondary);
-    font-size: 16px;
-}
-
-.edit-post-card {
-    background: var(--bg-card);
-    border-radius: var(--radius);
-    padding: 30px;
-    border: 1px solid var(--border-light);
-    box-shadow: var(--shadow-sm);
-}
-
-.form-section {
-    margin-bottom: 30px;
-}
-
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    font-size: 14px;
-}
-
-.form-group label i {
-    margin-right: 6px;
-    color: var(--primary-color);
-}
-
-.form-control {
-    width: 100%;
-    padding: 12px 16px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    background: var(--bg-main);
-    color: var(--text-primary);
-    transition: var(--transition);
-    font-family: inherit;
-}
-
-.form-control:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(183, 41, 41, 0.1);
-}
-
-select.form-control {
-    cursor: pointer;
-}
-
-textarea.form-control {
-    min-height: 250px;
-    resize: vertical;
-    line-height: 1.6;
-}
-
-.required {
-    color: var(--danger-color);
-    margin-left: 2px;
-}
-
-.form-text {
-    display: block;
-    margin-top: 4px;
-    color: var(--text-muted);
-    font-size: 12px;
-}
-
-/* Теги */
-.tags-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px;
-    background: var(--bg-sidebar);
-    border-radius: var(--radius-sm);
-}
-
-.tag-badge {
-    background: var(--primary-color);
-    color: white;
-    padding: 4px 12px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 500;
-}
-
-/* Существующие изображения */
-.existing-images-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin: 10px 0;
-}
-
-.existing-image-item {
-    width: 120px;
-    text-align: center;
-}
-
-.existing-image-item img {
-    width: 120px;
-    height: 120px;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-light);
-}
-
-.image-filename {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 4px;
-    word-break: break-all;
-}
-
-/* Загрузка изображений */
-.image-upload-area {
-    border: 2px dashed var(--border-color);
-    border-radius: var(--radius);
-    padding: 30px;
+.upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--r);
+    padding: 24px 20px;
     text-align: center;
     cursor: pointer;
-    transition: var(--transition);
-    background: var(--bg-sidebar);
-}
-
-.image-upload-area:hover {
-    border-color: var(--primary-color);
-    background: var(--bg-hover);
-}
-
-.image-upload-area.dragover {
-    border-color: var(--primary-color);
-    background: rgba(183, 41, 41, 0.05);
-}
-
-.file-input {
-    display: none;
-}
-
-.upload-message i {
-    font-size: 48px;
-    color: var(--primary-color);
-    margin-bottom: 10px;
-}
-
-.upload-message p {
-    font-size: 16px;
-    color: var(--text-primary);
-    margin-bottom: 5px;
-}
-
-.upload-message small {
-    color: var(--text-muted);
-}
-
-.image-preview {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-top: 20px;
-}
-
-.preview-item {
+    transition: all 0.2s ease;
+    background: var(--bg-input);
     position: relative;
-    width: 120px;
-    height: 120px;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    border: 1px solid var(--border-light);
-    box-shadow: var(--shadow-sm);
 }
-
-.preview-item img {
+.upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+.upload-zone i {
+    font-size: 32px;
+    color: var(--accent);
+    margin-bottom: 8px;
+}
+.upload-zone p {
+    font-size: 14px;
+    color: var(--text-2);
+    margin-bottom: 4px;
+}
+.upload-zone small {
+    font-size: 12px;
+    color: var(--text-3);
+}
+.upload-zone input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+}
+.img-previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 12px;
+}
+.img-preview {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: var(--r);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+}
+.img-preview img {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
-
-.preview-item .remove-btn {
+.img-preview .remove-img {
     position: absolute;
-    top: 5px;
-    right: 5px;
-    width: 24px;
-    height: 24px;
-    background: rgba(239, 68, 68, 0.9);
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    background: rgba(0,0,0,0.6);
     color: white;
     border: none;
     border-radius: 50%;
-    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
-    transition: var(--transition);
+    cursor: pointer;
+    font-size: 10px;
+    transition: all 0.2s ease;
 }
-
-.preview-item .remove-btn:hover {
-    background: var(--danger-color);
+.img-preview .remove-img:hover {
+    background: var(--red);
     transform: scale(1.1);
 }
-
-/* Предпросмотр */
-.preview-section {
-    margin-top: 24px;
-    padding: 20px;
-    background: var(--bg-sidebar);
-    border-radius: var(--radius);
-    border: 1px solid var(--border-light);
-}
-
-.preview-section h3 {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 16px;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.preview-section h3 i {
-    color: var(--primary-color);
-}
-
-.image-gallery {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    min-height: 100px;
-}
-
-.gallery-image {
-    width: 120px;
-    height: 120px;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-light);
-    box-shadow: var(--shadow-sm);
-}
-
-.form-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 24px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border-light);
-}
-
-.form-actions .btn {
-    flex: 1;
-    justify-content: center;
-    padding: 12px;
-}
-
-@media (max-width: 768px) {
-    .edit-post-card {
-        padding: 20px;
-    }
-
-    .form-actions {
-        flex-direction: column;
-    }
+.img-preview .upload-status {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 10px;
+    text-align: center;
+    padding: 2px;
 }
 </style>
 
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.tiny.cloud/1/t4sz6siquna8c2qwiiui5f0pru19ajpggk7u0xkvp5n5odrd/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
-let selectedFiles = [];
-let formChanged = false;
+let uploadedImages = [];
 
-// Drag & Drop для изображений
-const dropArea = document.getElementById('drop-area');
-const fileInput = document.getElementById('images');
-const imagePreview = document.getElementById('image-preview');
-const imageGallery = document.getElementById('image-gallery-preview');
+tinymce.init({
+  selector: '#editContent',
+  language: 'ru',
+  height: 380,
+  min_height: 260,
+  menubar: false,
+  branding: false,
+  resize: 'vertical',
+  plugins: 'lists link image table code fullscreen autolink',
+  toolbar: 'bold italic underline strikethrough | blocks | bullist numlist | blockquote link image table | code fullscreen',
+  toolbar_mode: 'sliding',
+  content_style: 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.65;color:#1a1916;padding:10px 14px;margin:0} p{margin:0 0 .75em} img{max-width:100%;height:auto;border-radius:8px;display:block;margin:.5em 0} blockquote{border-left:3px solid #e8402a;padding:6px 14px;margin:1em 0;background:#f0eeea;border-radius:0 5px 5px 0} pre{background:#1e1e1e;color:#d4d4d4;padding:14px;border-radius:6px;overflow-x:auto} code{background:#f0eeea;padding:2px 5px;border-radius:3px;font-size:13px}',
 
-if (dropArea && fileInput) {
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, preventDefaults, false);
-    });
+  images_upload_url: '{{ url_for("upload_image") }}',
+  images_reuse_filename: false,
+  images_upload_credentials: true,
+  images_upload_handler: function(blobInfo, progress) {
+    return new Promise(function(resolve, reject) {
+      var fd = new FormData();
+      fd.append('file', blobInfo.blob(), blobInfo.filename());
 
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
+      var xhr = new XMLHttpRequest();
+      xhr.withCredentials = true;
+      xhr.open('POST', '{{ url_for("upload_image") }}');
 
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
-    });
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) progress(e.loaded / e.total * 100);
+      };
 
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
-    });
-
-    dropArea.addEventListener('drop', handleDrop, false);
-    fileInput.addEventListener('change', handleFiles, false);
-}
-
-function handleDrop(e) {
-    const dt = e.dataTransfer;
-    handleFiles({ target: { files: dt.files } });
-}
-
-function handleFiles(e) {
-    const files = [...e.target.files];
-    const maxSize = 5 * 1024 * 1024; // 5 MB
-
-    files.forEach(file => {
-        if (file.type.startsWith('image/')) {
-            if (file.size <= maxSize) {
-                selectedFiles.push(file);
-                displayPreview(file);
-                updateGallery();
-                formChanged = true;
-            } else {
-                alert(`Файл ${file.name} превышает 5 МБ и не будет добавлен.`);
-            }
-        } else {
-            alert(`Файл ${file.name} не является изображением.`);
+      xhr.onload = function() {
+        if (xhr.status === 401) {
+          reject({ message: 'Сессия истекла — войдите заново', remove: true });
+          return;
         }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject('Ошибка загрузки: HTTP ' + xhr.status);
+          return;
+        }
+        try {
+          var json = JSON.parse(xhr.responseText);
+          if (!json.location) { reject('Сервер не вернул URL'); return; }
+          resolve(json.location);
+        } catch(e) {
+          reject('Неверный ответ сервера');
+        }
+      };
+
+      xhr.onerror = function() { reject('Сетевая ошибка при загрузке'); };
+      xhr.send(fd);
     });
+  }
+});
 
-    updateFileInput();
-}
+// Загрузка файлов через drag & drop
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+const imagePreviews = document.getElementById('imagePreviews');
 
-function displayPreview(file) {
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('drag-over');
+});
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const files = Array.from(e.dataTransfer.files);
+  uploadFiles(files);
+});
+fileInput.addEventListener('change', (e) => {
+  uploadFiles(Array.from(e.target.files));
+});
+
+async function uploadFiles(files) {
+  const imageFiles = files.filter(f => f.type.startsWith('image/'));
+
+  for (const file of imageFiles) {
+    if (file.size > 16 * 1024 * 1024) {
+      alert(`Файл ${file.name} превышает 16 МБ`);
+      continue;
+    }
+
+    const previewId = Date.now() + Math.random();
+    const previewDiv = document.createElement('div');
+    previewDiv.className = 'img-preview';
+    previewDiv.id = `preview-${previewId}`;
+    previewDiv.innerHTML = `
+      <div class="upload-status">Загрузка...</div>
+      <button class="remove-img" onclick="removePreview('${previewId}')">×</button>
+    `;
+    imagePreviews.appendChild(previewDiv);
+
     const reader = new FileReader();
-
-    reader.onload = e => {
-        const item = document.createElement('div');
-        item.className = 'preview-item';
-        item.innerHTML = `
-            <img src="${e.target.result}" alt="${file.name}">
-            <button class="remove-btn" onclick="removeFile('${file.name}')">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
-        imagePreview.appendChild(item);
+    reader.onload = function(e) {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      previewDiv.insertBefore(img, previewDiv.firstChild);
     };
-
     reader.readAsDataURL(file);
-}
 
-function removeFile(fileName) {
-    selectedFiles = selectedFiles.filter(f => f.name !== fileName);
-    updateFileInput();
-    renderPreview();
-    updateGallery();
-    formChanged = true;
-}
+    const formData = new FormData();
+    formData.append('file', file);
 
-function renderPreview() {
-    imagePreview.innerHTML = '';
-    selectedFiles.forEach(displayPreview);
-}
+    try {
+      const response = await fetch('{{ url_for("upload_image") }}', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
 
-function updateFileInput() {
-    const dataTransfer = new DataTransfer();
-    selectedFiles.forEach(f => dataTransfer.items.add(f));
-    fileInput.files = dataTransfer.files;
-}
+      if (response.ok) {
+        const data = await response.json();
+        uploadedImages.push(data.location);
+        previewDiv.querySelector('.upload-status').textContent = 'Готово';
+        previewDiv.querySelector('.upload-status').style.background = 'var(--green)';
 
-function updateGallery() {
-    if (!imageGallery) return;
-
-    imageGallery.innerHTML = '';
-    selectedFiles.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = e => {
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.className = 'gallery-image';
-            img.alt = file.name;
-            imageGallery.appendChild(img);
-        };
-        reader.readAsDataURL(file);
-    });
-}
-
-// Отслеживание изменений в форме
-document.getElementById('title').addEventListener('input', () => formChanged = true);
-document.getElementById('content').addEventListener('input', () => formChanged = true);
-document.getElementById('community_id').addEventListener('change', () => formChanged = true);
-
-// Предупреждение при уходе со страницы
-window.addEventListener('beforeunload', function(e) {
-    if (formChanged) {
-        e.preventDefault();
-        e.returnValue = 'У вас есть несохраненные изменения. Покинуть страницу?';
+        const editor = tinymce.get('editContent');
+        if (editor) {
+          editor.insertContent(`<img src="${data.location}" alt="${file.name}" style="max-width:100%;border-radius:8px;margin:10px 0">`);
+        }
+      } else {
+        previewDiv.querySelector('.upload-status').textContent = 'Ошибка';
+        previewDiv.querySelector('.upload-status').style.background = 'var(--red)';
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      previewDiv.querySelector('.upload-status').textContent = 'Ошибка';
+      previewDiv.querySelector('.upload-status').style.background = 'var(--red)';
     }
+
+    setTimeout(() => {
+      const status = previewDiv.querySelector('.upload-status');
+      if (status && status.textContent !== 'Ошибка') {
+        status.style.opacity = '0';
+        setTimeout(() => status.remove(), 500);
+      }
+    }, 2000);
+  }
+}
+
+function removePreview(previewId) {
+  const preview = document.getElementById(`preview-${previewId}`);
+  if (preview) {
+    preview.remove();
+  }
+}
+
+document.getElementById('editTitle').addEventListener('input', function() {
+  document.getElementById('titleCount').textContent = this.value.length;
 });
 
-document.getElementById('post-form').addEventListener('submit', function() {
-    formChanged = false;
-});
-
-// Валидация формы
-document.getElementById('post-form').addEventListener('submit', function(e) {
-    const title = document.getElementById('title').value.trim();
-    const content = document.getElementById('content').value.trim();
-
-    if (!title) {
-        e.preventDefault();
-        alert('Введите заголовок поста');
-        return false;
-    }
-
-    if (!content) {
-        e.preventDefault();
-        alert('Введите содержание поста');
-        return false;
-    }
+document.getElementById('editForm').addEventListener('submit', function(e) {
+  var ed = tinymce.get('editContent');
+  if (ed) ed.save();
+  var title   = document.getElementById('editTitle').value.trim();
+  var content = ed ? ed.getContent().replace(/<[^>]*>/g, '').trim() : '';
+  if (!title)   { e.preventDefault(); alert('Введите заголовок'); return; }
+  if (!content) { e.preventDefault(); alert('Содержание не может быть пустым'); return; }
 });
 </script>
 {% endblock %}

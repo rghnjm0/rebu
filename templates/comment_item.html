@@ -1,0 +1,117 @@
+{% macro render_comment(comment, post, user_comment_votes, can_moderate) %}
+<div class="comment-thread" data-level="{{ comment.level }}">
+  <div class="comment-wrapper" id="comment-{{ comment.id }}">
+    <div class="comment-vote-sidebar">
+      <button class="comment-vote-btn up {% if comment.id in user_comment_votes and user_comment_votes[comment.id] == 'up' %}up-voted{% endif %}"
+              onclick="voteComment({{ comment.id }}, 'up')" title="Полезный комментарий">
+        <i class="fas fa-chevron-up"></i>
+      </button>
+      <span class="comment-score {% if (comment.upvotes - comment.downvotes) > 0 %}positive{% elif (comment.upvotes - comment.downvotes) < 0 %}negative{% endif %}">
+        {{ comment.upvotes - comment.downvotes }}
+      </span>
+      <button class="comment-vote-btn down {% if comment.id in user_comment_votes and user_comment_votes[comment.id] == 'down' %}down-voted{% endif %}"
+              onclick="voteComment({{ comment.id }}, 'down')" title="Бесполезный комментарий">
+        <i class="fas fa-chevron-down"></i>
+      </button>
+    </div>
+
+    <div class="comment-content-wrapper">
+      <div class="comment-header">
+        <div class="comment-author-info">
+          <div class="comment-avatar" style="background: {{ comment.avatar_color or '#e8402a' }}">
+            {{ comment.username | first | upper }}
+          </div>
+          <div class="comment-author-details">
+            <a href="{{ url_for('user_profile', username=comment.username) }}" class="comment-author-name">
+              {{ comment.display_name or comment.username }}
+              {% if comment.author_role == 'admin' %}
+              <span class="user-badge admin-badge"><i class="fas fa-crown"></i> Admin</span>
+              {% elif comment.author_role == 'moderator' %}
+              <span class="user-badge mod-badge"><i class="fas fa-shield-halved"></i> Mod</span>
+              {% endif %}
+              {% if comment.user_id == session.user_id %}
+              <span class="user-badge own-badge"><i class="fas fa-user"></i> Вы</span>
+              {% endif %}
+            </a>
+            <span class="comment-time" title="{{ comment.created_at }}">
+              <i class="fas fa-clock"></i>
+              {{ comment.created_at[:16] }}
+            </span>
+          </div>
+        </div>
+
+        <div class="comment-actions">
+          {% if session.user_id and not post.is_deleted %}
+          <button class="comment-action-btn reply-btn" onclick="showReplyForm({{ comment.id }})" title="Ответить">
+            <i class="fas fa-reply"></i> <span class="action-text">Ответить</span>
+          </button>
+          {% endif %}
+
+          {% if session.user_id and comment.user_id != session.user_id %}
+          <a href="{{ url_for('report_content', content_type='comment', content_id=comment.id) }}"
+             class="comment-action-btn report-btn" title="Пожаловаться">
+            <i class="fas fa-flag"></i> <span class="action-text">Жалоба</span>
+          </a>
+          {% endif %}
+
+          {% if session.user_id == comment.user_id %}
+          <form method="POST" action="{{ url_for('delete_comment', comment_id=comment.id) }}"
+                style="display:inline" onsubmit="return confirm('Удалить комментарий? Все ответы на него также будут удалены.')">
+            <button type="submit" class="comment-action-btn delete-btn" title="Удалить">
+              <i class="fas fa-trash-alt"></i> <span class="action-text">Удалить</span>
+            </button>
+          </form>
+          {% endif %}
+
+          {% if can_moderate and session.user_id != comment.user_id %}
+          <a href="{{ url_for('moderate_comment', comment_id=comment.id, action='delete') }}"
+             class="comment-action-btn moderate-btn" onclick="return confirm('Удалить комментарий?')" title="Модерация">
+            <i class="fas fa-gavel"></i> <span class="action-text">Модерация</span>
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="comment-body">
+        {% if comment.is_deleted %}
+        <div class="comment-deleted">
+          <i class="fas fa-trash-alt"></i> Комментарий удалён
+          {% if comment.deleted_by %}
+          <span class="deleted-by">(модератором)</span>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="comment-text">{{ comment.content }}</div>
+        {% endif %}
+      </div>
+
+      {% if session.user_id and not post.is_deleted %}
+      <div id="reply-form-{{ comment.id }}" class="reply-form" style="display: none;">
+        <div class="reply-form-header">
+          <i class="fas fa-reply"></i> Ответ для <strong>{{ comment.display_name or comment.username }}</strong>
+        </div>
+        <textarea placeholder="Напишите ваш ответ…" rows="3"></textarea>
+        <div class="reply-form-actions">
+          <button class="btn btn-primary btn-sm" onclick="submitReply({{ post.id }}, {{ comment.id }})">
+            <i class="fas fa-paper-plane"></i> Отправить
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="hideReplyForm({{ comment.id }})">
+            <i class="fas fa-times"></i> Отмена
+          </button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if comment.replies %}
+  <div class="comment-replies">
+    {% for reply in comment.replies %}
+      {{ render_comment(reply, post, user_comment_votes, can_moderate) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{{ render_comment(comment, post, user_comment_votes, can_moderate) }}

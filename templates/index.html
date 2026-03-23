@@ -1,817 +1,113 @@
 {% extends "base.html" %}
-
-{% block title %}Главная{% endblock %}
+{% block title %}{% if title %}{{ title }}{% else %}Главная{% endif %} — Rebu{% endblock %}
 
 {% block content %}
-<div class="posts-feed">
-    <div class="feed-header">
-        <div class="feed-tabs">
-            <button class="feed-tab {% if not title or title == 'Лента постов' %}active{% endif %}"
-                    onclick="window.location.href='{{ url_for('index') }}'">
-                <i class="fas fa-newspaper"></i> Свежие
-            </button>
-            <button class="feed-tab {% if title == 'Горячее' %}active{% endif %}"
-                    onclick="window.location.href='{{ url_for('hot_posts') }}'">
-                <i class="fas fa-fire"></i> Горячее
-            </button>
-            {% if session.user_id %}
-            <button class="feed-tab" onclick="window.location.href='{{ url_for('bookmarks') }}'">
-                <i class="fas fa-bookmark"></i> Закладки
-            </button>
-            {% endif %}
-        </div>
-    </div>
+<div class="feed-wrap">
 
-    {% if posts %}
-        {% for post in posts %}
-        <div class="post-card">
-            <div class="post-header">
-                {% if post.community_name %}
-                <a href="{{ url_for('community_detail', community_name=post.community_name) }}"
-                   class="post-community">
-                    <i class="fas fa-hashtag"></i> r/{{ post.community_name }}
-                </a>
-                {% endif %}
-
-                <div class="post-meta-info">
-                    <span class="post-author">
-                        {{ post.username }}
-                        {% if post.author_role == 'admin' %}
-                        <span class="role-badge admin" title="Администратор">👑</span>
-                        {% elif post.author_role == 'moderator' %}
-                        <span class="role-badge moderator" title="Модератор">🛡️</span>
-                        {% endif %}
-                    </span>
-                    <span class="post-date">
-                        {{ post.created_at }}
-                    </span>
-                </div>
-            </div>
-
-            <h3 class="post-title">
-                <a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a>
-            </h3>
-
-            <!-- УЛУЧШЕННЫЙ БЛОК С ПРЕВЬЮ ИЗОБРАЖЕНИЙ И ТЕКСТА -->
-            <div class="post-preview">
-                {% if post.content %}
-                    {% set first_image = post.content|extract_first_image %}
-                    {% set images_count = post.content|extract_images_count %}
-
-                    {% if first_image %}
-                    <div class="post-preview-with-image">
-                        <div class="post-preview-image">
-                            <img src="{{ first_image }}" alt="Preview" loading="lazy">
-                            {% if images_count > 1 %}
-                            <div class="image-count-badge">
-                                <i class="fas fa-images"></i>
-                                {{ images_count }}
-                            </div>
-                            {% endif %}
-                        </div>
-                        <div class="post-preview-text">
-                            {{ post.content|striptags|truncate(200, True, '...') }}
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="post-content">
-                        {{ post.content|striptags|truncate(300, True, '...') }}
-                    </div>
-                    {% endif %}
-                {% endif %}
-            </div>
-
-            <div class="post-stats">
-                <div class="stat-badge vote-stat">
-                    <i class="fas fa-arrow-up"></i>
-                    <span>{{ post.upvotes - post.downvotes }} голосов</span>
-                </div>
-                <div class="stat-badge comment-stat">
-                    <i class="fas fa-comment"></i>
-                    <span>{{ post.comments_count }} комментариев</span>
-                </div>
-                {% if post.content|extract_images_count > 1 %}
-                <div class="stat-badge image-stat">
-                    <i class="fas fa-images"></i>
-                    <span>{{ post.content|extract_images_count }} фото</span>
-                </div>
-                {% endif %}
-            </div>
-
-            <div class="post-actions">
-                <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
-                   class="action-btn vote-up {% if post.id in user_votes and user_votes[post.id] == 'up' %}active{% endif %}">
-                    <i class="fas fa-arrow-up"></i>
-                    <span class="vote-count">{{ post.upvotes }}</span>
-                </a>
-
-                <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
-                   class="action-btn vote-down {% if post.id in user_votes and user_votes[post.id] == 'down' %}active{% endif %}">
-                    <i class="fas fa-arrow-down"></i>
-                    <span class="vote-count">{{ post.downvotes }}</span>
-                </a>
-
-                <a href="{{ url_for('post_detail', post_id=post.id) }}"
-                   class="action-btn comment-btn">
-                    <i class="fas fa-comment"></i>
-                    <span>Комментарии</span>
-                </a>
-
-                {% if session.user_id %}
-                <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}"
-                   class="action-btn bookmark-btn {% if is_bookmarked(post.id) %}active{% endif %}">
-                    <i class="fas fa-bookmark"></i>
-                    <span>Закладка</span>
-                </a>
-
-                <!-- Кнопка жалобы для всех пользователей (кроме автора) -->
-                {% if session.user_id != post.user_id %}
-                <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}"
-                   class="action-btn report-btn" title="Пожаловаться">
-                    <i class="fas fa-flag"></i>
-                    <span>Жалоба</span>
-                </a>
-                {% endif %}
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-    {% else %}
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <i class="fas fa-newspaper"></i>
-            </div>
-            <h3>Пока нет постов</h3>
-            <p>Будьте первым, кто создаст интересный пост!</p>
-            {% if session.user_id %}
-            <div class="empty-state-actions">
-                <a href="{{ url_for('create_post') }}" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Создать пост
-                </a>
-                <a href="{{ url_for('communities_list') }}" class="btn btn-outline">
-                    <i class="fas fa-users"></i> Найти сообщества
-                </a>
-            </div>
-            {% else %}
-            <div class="empty-state-actions">
-                <a href="{{ url_for('login') }}" class="btn btn-primary">Войти</a>
-                <a href="{{ url_for('register') }}" class="btn btn-outline">Регистрация</a>
-            </div>
-            {% endif %}
-        </div>
-    {% endif %}
+<div class="feed-tabs">
+  <a href="{{ url_for('index') }}" class="feed-tab {% if not title or title not in ['Горячее'] %}active{% endif %}">
+    <i class="fas fa-clock"></i> Свежие
+  </a>
+  <a href="{{ url_for('hot_posts') }}" class="feed-tab {% if title == 'Горячее' %}active{% endif %}">
+    <i class="fas fa-fire"></i> Горячее
+  </a>
+  {% if session.user_id %}
+  <a href="{{ url_for('bookmarks') }}" class="feed-tab">
+    <i class="fas fa-bookmark"></i> Закладки
+  </a>
+  {% endif %}
 </div>
 
-<style>
-/* Основные стили */
-.posts-feed {
-    margin-top: 16px;
-}
-
-.feed-header {
-    margin-bottom: 24px;
-}
-
-.feed-header h1 {
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 16px;
-}
-
-.feed-tabs {
-    display: flex;
-    gap: 8px;
-    background-color: var(--bg-sidebar);
-    padding: 4px;
-    border-radius: var(--radius);
-    width: fit-content;
-}
-
-.feed-tab {
-    padding: 8px 16px;
-    border: none;
-    background: none;
-    color: var(--text-secondary);
-    font-weight: 500;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: var(--transition);
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.feed-tab:hover {
-    background-color: var(--bg-hover);
-}
-
-.feed-tab.active {
-    background-color: white;
-    color: var(--primary-color);
-    box-shadow: var(--shadow-sm);
-}
-
-/* Карточка поста */
-.post-card {
-    background-color: var(--bg-card);
-    border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 16px;
-    border: 1px solid var(--border-light);
-    transition: var(--transition);
-}
-
-.post-card:hover {
-    border-color: var(--primary-light);
-    box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
-}
-
-.post-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.post-community {
-    background: var(--primary-gradient);
-    color: white;
-    padding: 4px 12px;
-    border-radius: var(--radius-full);
-    font-size: 12px;
-    font-weight: 600;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: var(--transition);
-}
-
-.post-community:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-}
-
-.post-meta-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--text-muted);
-    font-size: 13px;
-}
-
-.post-author {
-    color: var(--text-secondary);
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.role-badge {
-    display: inline-block;
-    margin-left: 2px;
-    font-size: 14px;
-}
-
-.role-badge.admin {
-    color: #fbbf24;
-    filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.3));
-}
-
-.role-badge.moderator {
-    color: #60a5fa;
-    filter: drop-shadow(0 0 2px rgba(96, 165, 250, 0.3));
-}
-
-.post-date {
-    color: var(--text-light);
-}
-
-.post-title {
-    font-size: 18px;
-    font-weight: 700;
-    line-height: 1.4;
-    margin-bottom: 12px;
-    color: var(--text-primary);
-}
-
-.post-title a {
-    color: inherit;
-    text-decoration: none;
-    transition: var(--transition);
-}
-
-.post-title a:hover {
-    color: var(--primary-color);
-}
-
-/* УЛУЧШЕННЫЕ СТИЛИ ДЛЯ ПРЕВЬЮ С ИЗОБРАЖЕНИЕМ */
-.post-preview {
-    margin-bottom: 16px;
-}
-
-.post-preview-with-image {
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-    background: var(--bg-main);
-    border-radius: var(--radius);
-    padding: 15px;
-    border: 1px solid var(--border-light);
-}
-
-.post-preview-image {
-    flex: 0 0 200px;
-    height: 150px;
-    border-radius: var(--radius);
-    overflow: hidden;
-    position: relative;
-    box-shadow: var(--shadow-md);
-}
-
-.post-preview-image::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(45deg, rgba(0,0,0,0.1), rgba(0,0,0,0));
-    pointer-events: none;
-    z-index: 1;
-}
-
-.image-count-badge {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: var(--primary-gradient);
-    color: white;
-    padding: 4px 8px;
-    border-radius: var(--radius-full);
-    font-size: 12px;
-    font-weight: 600;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    box-shadow: var(--shadow-sm);
-}
-
-.image-count-badge i {
-    font-size: 10px;
-}
-
-.post-preview-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.5s ease;
-}
-
-.post-preview-image:hover img {
-    transform: scale(1.1);
-}
-
-.post-preview-text {
-    flex: 1;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    font-size: 15px;
-    max-height: 150px;
-    overflow: hidden;
-    position: relative;
-}
-
-.post-preview-text::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 40px;
-    background: linear-gradient(to top, var(--bg-main), transparent);
-}
-
-@media (max-width: 768px) {
-    .post-preview-with-image {
-        flex-direction: column;
-    }
-
-    .post-preview-image {
-        width: 100%;
-        flex: 0 0 auto;
-        height: 200px;
-    }
-}
-
-/* Старый стиль для текста без изображений */
-.post-content {
-    color: var(--text-secondary);
-    line-height: 1.6;
-    margin-bottom: 16px;
-    font-size: 15px;
-    max-height: 60px;
-    overflow: hidden;
-    position: relative;
-    padding: 0 5px;
-}
-
-.post-content::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 40px;
-    height: 20px;
-    background: linear-gradient(to right, transparent, var(--bg-card));
-}
-
-.post-stats {
-    background: var(--bg-sidebar);
-    padding: 10px 14px;
-    border-radius: var(--radius-sm);
-    margin: 16px 0;
-    display: flex;
-    gap: 20px;
-    font-size: 13px;
-    flex-wrap: wrap;
-}
-
-.stat-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--text-secondary);
-}
-
-.stat-badge i {
-    font-size: 12px;
-}
-
-.vote-stat {
-    color: var(--success-color);
-}
-
-.comment-stat {
-    color: var(--info-color);
-}
-
-.image-stat {
-    color: var(--accent-color) !important;
-    background: rgba(245, 158, 11, 0.1);
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-}
-
-.image-stat i {
-    color: var(--accent-color);
-}
-
-/* Кнопки действий */
-.post-actions {
-    display: flex;
-    gap: 8px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border-light);
-    flex-wrap: wrap;
-}
-
-.action-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: var(--bg-sidebar);
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
-    font-size: 13px;
-    font-weight: 500;
-    text-decoration: none;
-    transition: var(--transition);
-    cursor: pointer;
-}
-
-.action-btn:hover {
-    background: var(--bg-hover);
-    color: var(--primary-color);
-    transform: translateY(-1px);
-}
-
-.action-btn.active {
-    background: rgba(99, 102, 241, 0.1);
-    color: var(--primary-color);
-    border-color: var(--primary-light);
-}
-
-.action-btn.vote-up.active {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--success-color);
-    border-color: var(--success-color);
-}
-
-.action-btn.vote-down.active {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger-color);
-    border-color: var(--danger-color);
-}
-
-.action-btn.bookmark-btn.active {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--accent-color);
-    border-color: var(--accent-color);
-}
-
-.action-btn.report-btn:hover {
-    color: var(--danger-color);
-}
-
-.vote-count {
-    font-weight: 600;
-    min-width: 20px;
-    text-align: center;
-    font-size: 13px;
-}
-
-/* Пустое состояние */
-.empty-state {
-    text-align: center;
-    padding: 60px 30px;
-    background: var(--bg-card);
-    border-radius: var(--radius);
-    border: 2px dashed var(--border-color);
-    margin: 40px 0;
-}
-
-.empty-state-icon {
-    width: 64px;
-    height: 64px;
-    background: var(--bg-sidebar);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 20px;
-    font-size: 24px;
-    color: var(--primary-color);
-}
-
-.empty-state h3 {
-    font-size: 20px;
-    font-weight: 600;
-    margin-bottom: 12px;
-    color: var(--text-primary);
-}
-
-.empty-state p {
-    color: var(--text-secondary);
-    margin-bottom: 24px;
-    font-size: 15px;
-    max-width: 400px;
-    margin-left: auto;
-    margin-right: auto;
-    line-height: 1.6;
-}
-
-.empty-state-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    margin-top: 24px;
-}
-
-/* Адаптивность */
-@media (max-width: 768px) {
-    .feed-header h1 {
-        font-size: 22px;
-    }
-
-    .feed-tabs {
-        width: 100%;
-        justify-content: stretch;
-    }
-
-    .feed-tab {
-        flex: 1;
-        justify-content: center;
-    }
-
-    .post-card {
-        padding: 16px;
-    }
-
-    .post-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .post-meta-info {
-        width: 100%;
-        justify-content: space-between;
-    }
-
-    .post-title {
-        font-size: 16px;
-    }
-
-    .post-stats {
-        flex-direction: row;
-        gap: 12px;
-        justify-content: space-between;
-    }
-
-    .post-actions {
-        justify-content: space-between;
-    }
-
-    .action-btn {
-        flex: 1;
-        justify-content: center;
-        padding: 8px;
-    }
-
-    .action-btn span {
-        display: none;
-    }
-
-    .action-btn i {
-        margin: 0;
-        font-size: 16px;
-    }
-
-    .empty-state-actions {
-        flex-direction: column;
-    }
-
-    .empty-state-actions .btn {
-        width: 100%;
-    }
-}
-
-@media (max-width: 480px) {
-    .feed-header h1 {
-        font-size: 20px;
-    }
-
-    .post-stats {
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-
-    .stat-badge {
-        font-size: 12px;
-    }
-
-    .post-actions {
-        flex-wrap: wrap;
-    }
-
-    .action-btn {
-        flex: none;
-        width: calc(50% - 4px);
-    }
-
-    .action-btn span {
-        display: inline;
-        font-size: 12px;
-    }
-
-    .post-preview-image {
-        height: 150px;
-    }
-}
-
-/* Анимации */
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.05);
-    }
-    100% {
-        transform: scale(1);
-    }
-}
-
-.post-card:hover .post-community {
-    animation: pulse 1s ease infinite;
-}
-
-/* Подсказки */
-.action-btn[title] {
-    position: relative;
-}
-
-.action-btn[title]:hover::after {
-    content: attr(title);
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 4px 8px;
-    background: var(--bg-card);
-    color: var(--text-primary);
-    font-size: 11px;
-    border-radius: var(--radius-sm);
-    white-space: nowrap;
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border-light);
-    pointer-events: none;
-    z-index: 1000;
-}
-</style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Форматирование больших чисел
-    document.querySelectorAll('.vote-count').forEach(el => {
-        const value = parseInt(el.textContent);
-        if (value > 1000) {
-            el.textContent = (value / 1000).toFixed(1) + 'k';
-        } else if (value > 1000000) {
-            el.textContent = (value / 1000000).toFixed(1) + 'M';
-        }
-    });
-
-    // Подтверждение для важных действий
-    const reportButtons = document.querySelectorAll('.action-btn.report-btn');
-    reportButtons.forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            if (!confirm('Вы уверены, что хотите пожаловаться на этот пост?')) {
-                e.preventDefault();
-            }
-        });
-    });
-
-    // Сохранение позиции скролла при возврате
-    let scrollPosition = sessionStorage.getItem('scrollPosition');
-    if (scrollPosition) {
-        window.scrollTo(0, parseInt(scrollPosition));
-        sessionStorage.removeItem('scrollPosition');
-    }
-
-    // Сохраняем позицию скролла перед уходом со страницы
-    window.addEventListener('beforeunload', function() {
-        sessionStorage.setItem('scrollPosition', window.scrollY);
-    });
-
-    // Добавляем информацию о времени публикации
-    document.querySelectorAll('.post-date').forEach(el => {
-        const dateStr = el.textContent.trim();
-        try {
-            const postDate = new Date(dateStr);
-            if (!isNaN(postDate.getTime())) {
-                const now = new Date();
-                const diffMs = now - postDate;
-                const diffMins = Math.floor(diffMs / 60000);
-                const diffHours = Math.floor(diffMs / 3600000);
-                const diffDays = Math.floor(diffMs / 86400000);
-
-                let timeAgo = '';
-                if (diffMins < 60) {
-                    timeAgo = `${diffMins} мин. назад`;
-                } else if (diffHours < 24) {
-                    timeAgo = `${diffHours} ч. назад`;
-                } else if (diffDays < 7) {
-                    timeAgo = `${diffDays} дн. назад`;
-                } else {
-                    timeAgo = dateStr.slice(0, 10);
-                }
-
-                el.setAttribute('title', dateStr);
-                if (timeAgo !== dateStr) {
-                    el.textContent = timeAgo;
-                }
-            }
-        } catch (e) {
-            // Игнорируем ошибки парсинга
-        }
-    });
-
-    // Ленивая загрузка изображений на главной
-    const lazyImages = document.querySelectorAll('.post-preview-image img');
-    if ('IntersectionObserver' in window) {
-        const imageObserver = new IntersectionObserver((entries, observer) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const img = entry.target;
-                    if (img.dataset.src) {
-                        img.src = img.dataset.src;
-                    }
-                    imageObserver.unobserve(img);
-                }
-            });
-        });
-
-        lazyImages.forEach(img => imageObserver.observe(img));
-    }
-});
-</script>
+{% if posts %}
+  {% for post in posts %}
+  <article class="post-card">
+    <div class="post-meta">
+      {% if post.community_name %}
+      <a href="{{ url_for('community_detail', community_name=post.community_name) }}" class="post-community-tag">
+        r/{{ post.community_name }}
+      </a>
+      {% endif %}
+      <a href="{{ url_for('user_profile', username=post.username) }}" class="post-author-link">
+        {{ post.display_name or post.username }}
+        {% if post.author_role == 'admin' %}<i class="fas fa-crown role-crown"></i>
+        {% elif post.author_role == 'moderator' %}<i class="fas fa-shield-halved role-shield"></i>{% endif %}
+      </a>
+      <span class="post-time">{{ post.created_at[:16] }}</span>
+    </div>
+
+    <h2 class="post-title">
+      <a href="{{ url_for('post_detail', post_id=post.id) }}">{{ post.title }}</a>
+    </h2>
+
+    {% if post.content %}
+    <div class="post-excerpt">{{ post.content | striptags | truncate(260, True, '…') }}</div>
+    {% endif %}
+
+    <div class="post-actions">
+      {% set score = post.upvotes - post.downvotes %}
+      <span class="score-chip {% if score > 0 %}pos{% elif score < 0 %}neg{% endif %}">
+        <i class="fas fa-arrow-up"></i> {{ score }}
+      </span>
+      <a href="{{ url_for('vote_post', post_id=post.id, vote_type='up') }}"
+         class="act-btn up {% if post.id in user_votes and user_votes[post.id] == 'up' %}on{% endif %}">
+        <i class="fas fa-arrow-up"></i> <span class="cnt">{{ post.upvotes }}</span>
+      </a>
+      <a href="{{ url_for('vote_post', post_id=post.id, vote_type='down') }}"
+         class="act-btn down {% if post.id in user_votes and user_votes[post.id] == 'down' %}on{% endif %}">
+        <i class="fas fa-arrow-down"></i>
+      </a>
+      <a href="{{ url_for('post_detail', post_id=post.id) }}" class="act-btn">
+        <i class="fas fa-comment"></i> <span>{{ post.comments_count }}</span>
+      </a>
+      {% if session.user_id %}
+      <a href="{{ url_for('toggle_bookmark', post_id=post.id) }}"
+         class="act-btn bm {% if post.id in user_bookmarks %}on{% endif %}">
+        <i class="fas fa-bookmark"></i>
+      </a>
+      {% if session.user_id != post.user_id %}
+      <a href="{{ url_for('report_content', content_type='post', content_id=post.id) }}" class="act-btn rep">
+        <i class="fas fa-flag"></i>
+      </a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% if page > 1 %}
+    <a href="{{ request.path }}?page={{ page - 1 }}" class="pg-btn">
+      <i class="fas fa-chevron-left"></i> Назад
+    </a>
+    {% endif %}
+    <span class="pg-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="{{ request.path }}?page={{ page + 1 }}" class="pg-btn">
+      Далее <i class="fas fa-chevron-right"></i>
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-state-icon"><i class="fas fa-newspaper"></i></div>
+  <h3>Постов пока нет</h3>
+  <p>Станьте первым — создайте пост или вступите в сообщество</p>
+  {% if session.user_id %}
+  <div class="empty-state-actions">
+    <a href="{{ url_for('create_post') }}" class="btn btn-primary"><i class="fas fa-plus"></i> Новый пост</a>
+    <a href="{{ url_for('communities_list') }}" class="btn btn-ghost">Сообщества</a>
+  </div>
+  {% else %}
+  <div class="empty-state-actions">
+    <a href="{{ url_for('register') }}" class="btn btn-primary">Зарегистрироваться</a>
+    <a href="{{ url_for('login') }}" class="btn btn-ghost">Войти</a>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+</div>{# /feed-wrap #}
 {% endblock %}

@@ -1,893 +1,121 @@
-<!-- templates/base.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}MiniReddit{% endblock %}</title>
-
-    <!-- Критический CSS загружается первым -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-
-    <!-- Font Awesome загружается асинхронно -->
-    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"></noscript>
-
-    <style>
-        /* ОПТИМАЛЬНЫЕ РАЗМЕРЫ - НОРМАЛЬНО, НЕ МЕЛКО */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --primary-color: #b72929;
-            --primary-light: #d44e4e;
-            --bg-main: #f0f2f5;
-            --bg-card: #ffffff;
-            --bg-sidebar: #f6f8fa;
-            --border-light: #dae0e6;
-            --text-primary: #1a1a1b;
-            --text-secondary: #4a4a4b;
-            --text-muted: #787c7e;
-            --success-color: #0c8c4a;
-            --danger-color: #d93a3a;
-            --warning-color: #e68a00;
-            --radius: 12px;
-            --radius-sm: 8px;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: var(--bg-main);
-            color: var(--text-primary);
-            line-height: 1.5;
-        }
-
-        /* Верхняя панель */
-        .top-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background: var(--bg-card);
-            border-bottom: 1px solid var(--border-light);
-            z-index: 1000;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        }
-
-        .top-bar-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            height: 100%;
-            padding: 0 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 24px;
-        }
-
-        .top-logo {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: var(--primary-color);
-            text-decoration: none;
-            white-space: nowrap;
-            letter-spacing: -0.5px;
-        }
-
-        .top-search {
-            flex: 1;
-            max-width: 600px;
-        }
-
-        .top-search-form {
-            display: flex;
-            background: var(--bg-sidebar);
-            border: 1px solid var(--border-light);
-            border-radius: 999px;
-            overflow: hidden;
-            height: 44px;
-            transition: all 0.2s;
-        }
-
-        .top-search-form:focus-within {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(183, 41, 41, 0.1);
-        }
-
-        .top-search-form input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            padding: 0 20px;
-            font-size: 1rem;
-            outline: none;
-        }
-
-        .top-search-form button {
-            background: var(--primary-color);
-            border: none;
-            border-radius: 999px;
-            color: white;
-            padding: 0 24px;
-            cursor: pointer;
-            font-size: 1.1rem;
-            height: 100%;
-            transition: opacity 0.2s;
-        }
-
-        .top-search-form button:hover {
-            opacity: 0.9;
-        }
-
-        .top-user {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .user-avatar.small {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            background: var(--primary-color);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 1.2rem;
-            text-decoration: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .top-btn {
-            padding: 0 20px;
-            height: 42px;
-            border-radius: 999px;
-            font-size: 0.95rem;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            text-decoration: none;
-            background: var(--bg-sidebar);
-            color: var(--text-secondary);
-            border: 1px solid var(--border-light);
-            transition: all 0.2s;
-        }
-
-        .top-btn:hover {
-            background: var(--bg-hover, #e9ecef);
-            border-color: var(--primary-color);
-        }
-
-        .top-btn.login-btn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-        }
-
-        .top-btn.login-btn:hover {
-            background: #a32222;
-        }
-
-        /* Основной контейнер */
-        .app-container {
-            display: flex;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 80px 24px 30px 24px;
-            min-height: calc(100vh - 60px);
-            gap: 24px;
-        }
-
-        /* Левая панель - 260px */
-        .sidebar-left {
-            width: 260px;
-            flex-shrink: 0;
-            position: sticky;
-            top: 80px;
-            align-self: flex-start;
-            background: var(--bg-card);
-            border: 1px solid var(--border-light);
-            border-radius: var(--radius);
-            padding: 20px 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-
-        /* Центральный контент */
-        .main-content {
-            flex: 1;
-            min-width: 0;
-            max-width: 800px;
-            margin: 0 auto;
-            width: 100%;
-        }
-
-        /* Правая панель - 300px */
-        .sidebar-right {
-            width: 300px;
-            flex-shrink: 0;
-            position: sticky;
-            top: 80px;
-            align-self: flex-start;
-            background: var(--bg-card);
-            border: 1px solid var(--border-light);
-            border-radius: var(--radius);
-            padding: 20px 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-
-        /* Навигация */
-        .nav-tabs {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .nav-tab {
-            margin: 2px 0;
-        }
-
-        .nav-tab a {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 12px 20px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 1rem;
-            font-weight: 500;
-            transition: all 0.2s;
-            border-left: 3px solid transparent;
-        }
-
-        .nav-tab a:hover {
-            background: var(--bg-sidebar);
-            color: var(--primary-color);
-            border-left-color: var(--primary-light);
-        }
-
-        .nav-tab a.active {
-            background: var(--bg-sidebar);
-            color: var(--primary-color);
-            border-left-color: var(--primary-color);
-            font-weight: 600;
-        }
-
-        .nav-tab i {
-            width: 22px;
-            text-align: center;
-            font-size: 1.2rem;
-        }
-
-        .nav-divider {
-            height: 1px;
-            background: var(--border-light);
-            margin: 16px 0;
-        }
-
-        .sidebar-section {
-            padding: 0 20px;
-            margin-bottom: 24px;
-        }
-
-        .sidebar-section h3 {
-            font-size: 0.85rem;
-            font-weight: 700;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 16px;
-        }
-
-        /* Компактный профиль в правой панели */
-        .user-info-compact {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 12px 16px;
-            background: var(--bg-sidebar);
-            border-radius: var(--radius-sm);
-            margin-bottom: 8px;
-            border: 1px solid var(--border-light);
-        }
-
-        .user-avatar-small {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: var(--primary-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 600;
-            font-size: 1rem;
-            flex-shrink: 0;
-        }
-
-        .username {
-            font-weight: 600;
-            font-size: 1rem;
-            color: var(--text-primary);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* Статистика */
-        .user-stats {
-            padding: 12px 16px;
-            background: var(--bg-sidebar);
-            border-radius: var(--radius-sm);
-            border: 1px solid var(--border-light);
-        }
-
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            font-size: 0.95rem;
-        }
-
-        .stat-row:not(:last-child) {
-            border-bottom: 1px solid var(--border-light);
-        }
-
-        .stat-label {
-            color: var(--text-muted);
-        }
-
-        .stat-value {
-            font-weight: 700;
-            color: var(--primary-color);
-            font-size: 1.1rem;
-        }
-
-        /* Бейджи */
-        .badge {
-            background: var(--primary-color);
-            color: white;
-            padding: 3px 8px;
-            border-radius: 999px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            margin-left: auto;
-        }
-
-        .badge.warning {
-            background: var(--warning-color);
-        }
-
-        /* Кнопки */
-        .btn {
-            padding: 10px 16px;
-            border: none;
-            border-radius: var(--radius-sm);
-            font-size: 0.95rem;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.2s;
-            border: 1px solid transparent;
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #a32222;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(183, 41, 41, 0.2);
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid var(--border-light);
-            color: var(--text-secondary);
-        }
-
-        .btn-outline:hover {
-            background: var(--bg-sidebar);
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-        }
-
-        .btn-small {
-            padding: 8px 14px;
-            font-size: 0.9rem;
-        }
-
-        .create-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        /* Список сообществ */
-        .community-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .community-item {
-            margin-bottom: 2px;
-        }
-
-        .community-link {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 8px 12px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 0.95rem;
-            border-radius: var(--radius-sm);
-            transition: all 0.2s;
-        }
-
-        .community-link:hover {
-            background: var(--bg-sidebar);
-            color: var(--primary-color);
-        }
-
-        .community-avatar {
-            width: 28px;
-            height: 28px;
-            background: var(--primary-color);
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 0.9rem;
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-
-        /* Алерты */
-        .alert {
-            padding: 14px 18px;
-            border-radius: var(--radius-sm);
-            margin-bottom: 20px;
-            font-size: 0.95rem;
-            border-left: 4px solid;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .alert-success {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--success-color);
-            border-left-color: var(--success-color);
-        }
-
-        .alert-error {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--danger-color);
-            border-left-color: var(--danger-color);
-        }
-
-        /* Стили для постов */
-        .post-card {
-            background: var(--bg-card);
-            border-radius: var(--radius);
-            padding: 20px;
-            margin-bottom: 16px;
-            border: 1px solid var(--border-light);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
-        }
-
-        .post-card:hover {
-            border-color: var(--primary-light);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-
-        .post-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-        }
-
-        .post-community {
-            background: var(--primary-color);
-            color: white;
-            padding: 4px 14px;
-            border-radius: 999px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-decoration: none;
-        }
-
-        .post-meta-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        .post-author {
-            color: var(--text-secondary);
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .post-date {
-            color: var(--text-muted);
-        }
-
-        .post-title {
-            font-size: 1.4rem;
-            font-weight: 700;
-            margin: 12px 0;
-            color: var(--text-primary);
-            line-height: 1.4;
-        }
-
-        .post-title a {
-            color: inherit;
-            text-decoration: none;
-        }
-
-        .post-title a:hover {
-            color: var(--primary-color);
-        }
-
-        .post-content {
-            color: var(--text-secondary);
-            line-height: 1.6;
-            margin-bottom: 16px;
-            font-size: 1rem;
-        }
-
-        .post-stats {
-            display: flex;
-            gap: 24px;
-            padding: 12px 0;
-            border-top: 1px solid var(--border-light);
-            border-bottom: 1px solid var(--border-light);
-            margin: 16px 0;
-            font-size: 0.95rem;
-        }
-
-        .stat-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text-secondary);
-        }
-
-        .post-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            padding: 8px 16px;
-            font-size: 0.95rem;
-            background: var(--bg-sidebar);
-            border: 1px solid var(--border-light);
-            border-radius: var(--radius-sm);
-            text-decoration: none;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .action-btn:hover {
-            background: var(--bg-hover, #e9ecef);
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-        }
-
-        .vote-count {
-            font-weight: 600;
-            min-width: 24px;
-            text-align: center;
-        }
-
-        /* Адаптивность */
-        @media (max-width: 1200px) {
-            .app-container {
-                flex-wrap: wrap;
-            }
-
-            .sidebar-left, .sidebar-right {
-                position: static;
-                width: 100%;
-            }
-
-            .main-content {
-                order: -1;
-                max-width: 100%;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .top-bar-container {
-                flex-wrap: wrap;
-                height: auto;
-                padding: 10px 16px;
-                gap: 12px;
-            }
-
-            .app-container {
-                padding-top: 110px;
-            }
-
-            .top-search {
-                order: 3;
-                max-width: 100%;
-                width: 100%;
-            }
-
-            .top-logo {
-                font-size: 1.5rem;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Rebu{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"></noscript>
 </head>
 <body>
-    <header class="top-bar">
-        <div class="top-bar-container">
-            <a href="{{ url_for('index') }}" class="top-logo">MiniReddit</a>
+<header class="header">
+  <button class="header-toggle" id="sidebarToggle" title="Меню"><i class="fas fa-bars"></i></button>
+  <a href="{{ url_for('index') }}" class="header-logo">re<span>bu</span></a>
+  <div class="header-search">
+    <form action="{{ url_for('search_posts') }}" method="GET">
+      <input type="text" name="q" placeholder="Поиск постов..." value="{{ request.args.get('q', '') }}">
+      <button type="submit"><i class="fas fa-search"></i></button>
+    </form>
+  </div>
+  <div class="header-actions">
+    {% if session.user_id %}
+      {% if is_moderator_global() %}
+      <a href="{{ url_for('moderation_reports') }}" class="hbtn hbtn-icon" title="Модерация" style="position:relative">
+        <i class="fas fa-shield-halved"></i>
+        {% if get_moderation_count() > 0 %}<span class="badge" style="position:absolute;top:-4px;right:-4px;font-size:9px;min-width:14px;height:14px">{{ get_moderation_count() }}</span>{% endif %}
+      </a>
+      {% endif %}
+      {% if is_admin() %}
+      <a href="{{ url_for('admin_panel') }}" class="hbtn hbtn-icon" title="Администрирование"><i class="fas fa-crown"></i></a>
+      {% endif %}
+      <a href="{{ url_for('user_profile', username=session.username) }}" class="user-ava sm" title="{{ session.display_name or session.username }}">
+        {{ session.username|first|upper }}
+      </a>
+      <a href="{{ url_for('logout') }}" class="hbtn hbtn-icon" title="Выйти"><i class="fas fa-right-from-bracket"></i></a>
+    {% else %}
+      <a href="{{ url_for('login') }}" class="hbtn hbtn-ghost">Войти</a>
+      <a href="{{ url_for('register') }}" class="hbtn hbtn-primary">Регистрация</a>
+    {% endif %}
+  </div>
+</header>
 
-            <div class="top-search">
-                <form action="{{ url_for('search_posts') }}" method="GET" class="top-search-form">
-                    <input type="text" name="q" placeholder="Поиск..." value="{{ request.args.get('q', '') }}">
-                    <button type="submit"><i class="fas fa-search"></i></button>
-                </form>
-            </div>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-            <div class="top-user">
-                {% if session.user_id %}
-                    <a href="{{ url_for('profile') }}" class="user-avatar-link" title="Мой профиль">
-                        <div class="user-avatar small">{{ session.username|first|upper }}</div>
-                    </a>
-
-                    {% if is_moderator_global() %}
-                    <a href="{{ url_for('moderation_reports') }}" class="top-btn" title="Модерация">
-                        <i class="fas fa-shield-alt"></i>
-                    </a>
-                    {% endif %}
-
-                    {% if is_admin() %}
-                    <a href="{{ url_for('admin_panel') }}" class="top-btn" title="Админ-панель">
-                        <i class="fas fa-crown"></i>
-                    </a>
-                    {% endif %}
-
-                    <a href="{{ url_for('logout') }}" class="top-btn">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </a>
-                {% else %}
-                    <a href="{{ url_for('login') }}" class="top-btn login-btn">Войти</a>
-                    <a href="{{ url_for('register') }}" class="top-btn">Регистрация</a>
-                {% endif %}
-            </div>
-        </div>
-    </header>
-
-    <div class="app-container">
-        <!-- Левая панель (260px) -->
-        <aside class="sidebar-left">
-            <ul class="nav-tabs">
-                <li class="nav-tab"><a href="{{ url_for('index') }}"><i class="fas fa-home"></i>Главная</a></li>
-                <li class="nav-tab"><a href="{{ url_for('hot_posts') }}"><i class="fas fa-fire"></i>Горячее</a></li>
-                <li class="nav-tab"><a href="{{ url_for('communities_list') }}"><i class="fas fa-users"></i>Сообщества</a></li>
-                <li class="nav-tab"><a href="{{ url_for('search_posts') }}"><i class="fas fa-search"></i>Поиск</a></li>
-            </ul>
-
-            <div class="nav-divider"></div>
-
-            {% if session.user_id %}
-            <div class="sidebar-section">
-                <h3>СОЗДАТЬ</h3>
-                <div class="create-actions">
-                    <a href="{{ url_for('create_post') }}" class="btn btn-primary btn-small">➕ Новый пост</a>
-                    <a href="{{ url_for('create_community') }}" class="btn btn-outline btn-small">👥 Новое сообщество</a>
-                </div>
-            </div>
-            {% endif %}
-
-            <div class="sidebar-section">
-                <h3>ПОПУЛЯРНЫЕ СООБЩЕСТВА</h3>
-                <ul class="community-list">
-                    {% for community in get_popular_communities()[:5] %}
-                    <li class="community-item">
-                        <a href="{{ url_for('community_detail', community_name=community.name) }}" class="community-link">
-                            <span class="community-avatar">{{ community.name|first|upper }}</span>
-                            <span>r/{{ community.name }}</span>
-                        </a>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-
-            <div class="sidebar-section">
-                <h3>ИНФОРМАЦИЯ</h3>
-                <ul class="community-list">
-                    <li class="community-item">
-                        <a href="{{ url_for('terms') }}" class="community-link">
-                            <i class="fas fa-gavel" style="width: 28px;"></i>
-                            <span>Пользовательское соглашение</span>
-                        </a>
-                    </li>
-                    <li class="community-item">
-                        <a href="{{ url_for('faq') }}" class="community-link">
-                            <i class="fas fa-question-circle" style="width: 28px;"></i>
-                            <span>FAQ</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </aside>
-
-        <!-- Центральный контент -->
-        <main class="main-content">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category if category != 'danger' else 'error' }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-
-            {% block content %}{% endblock %}
-        </main>
-
-        <!-- Правая панель (300px) -->
-        <aside class="sidebar-right">
-            {% if session.user_id %}
-                <div class="sidebar-section">
-                    <h3>МОЙ АККАУНТ</h3>
-                    <a href="{{ url_for('profile') }}" style="text-decoration: none;">
-                        <div class="user-info-compact">
-                            <span class="user-avatar-small">{{ session.username|first|upper }}</span>
-                            <span class="username">{{ session.username }}</span>
-                            {% if is_admin() %}
-                            <span style="margin-left: auto; font-size: 1.2rem;">👑</span>
-                            {% elif is_moderator_global() %}
-                            <span style="margin-left: auto; font-size: 1.2rem;">🛡️</span>
-                            {% endif %}
-                        </div>
-                    </a>
-                </div>
-
-                <div class="nav-divider"></div>
-
-                <div class="sidebar-section">
-                    <h3>ЛИЧНОЕ</h3>
-                    <ul class="nav-tabs">
-                        <li class="nav-tab">
-                            <a href="{{ url_for('profile') }}">
-                                <i class="fas fa-user"></i>
-                                <span>Мой профиль</span>
-                            </a>
-                        </li>
-                        <li class="nav-tab">
-                            <a href="{{ url_for('bookmarks') }}">
-                                <i class="fas fa-bookmark"></i>
-                                <span>Закладки</span>
-                            </a>
-                        </li>
-                        <li class="nav-tab">
-                            <a href="{{ url_for('my_communities') }}">
-                                <i class="fas fa-list"></i>
-                                <span>Мои сообщества</span>
-                                {% if get_user_subscriptions_count() > 0 %}
-                                <span class="badge">{{ get_user_subscriptions_count() }}</span>
-                                {% endif %}
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-
-                <div class="nav-divider"></div>
-
-                <div class="sidebar-section">
-                    <h3>СТАТИСТИКА</h3>
-                    <div class="user-stats">
-                        <div class="stat-row">
-                            <span class="stat-label">Постов:</span>
-                            <span class="stat-value">0</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">Комментариев:</span>
-                            <span class="stat-value">0</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">Подписок:</span>
-                            <span class="stat-value">{{ get_user_subscriptions_count() }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {% if is_moderator_global() or is_admin() %}
-                <div class="nav-divider"></div>
-
-                <div class="sidebar-section">
-                    <h3>МОДЕРАЦИЯ</h3>
-                    <ul class="nav-tabs">
-                        {% if is_moderator_global() %}
-                        <li class="nav-tab">
-                            <a href="{{ url_for('moderation_reports') }}">
-                                <i class="fas fa-shield-alt"></i>
-                                <span>Жалобы</span>
-                                {% if get_moderation_count() > 0 %}
-                                <span class="badge warning">{{ get_moderation_count() }}</span>
-                                {% endif %}
-                            </a>
-                        </li>
-                        {% endif %}
-
-                        {% if is_admin() %}
-                        <li class="nav-tab">
-                            <a href="{{ url_for('admin_panel') }}">
-                                <i class="fas fa-crown"></i>
-                                <span>Админ-панель</span>
-                            </a>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </div>
-                {% endif %}
-            {% else %}
-                <div class="sidebar-section">
-                    <h3>ДОБРО ПОЖАЛОВАТЬ!</h3>
-                    <p style="font-size: 1rem; color: var(--text-secondary); margin-bottom: 16px;">
-                        Присоединяйтесь к MiniReddit
-                    </p>
-                    <div style="display: flex; gap: 10px;">
-                        <a href="{{ url_for('login') }}" class="btn btn-primary" style="flex: 1;">Войти</a>
-                        <a href="{{ url_for('register') }}" class="btn btn-outline" style="flex: 1;">Регистрация</a>
-                    </div>
-                </div>
-            {% endif %}
-        </aside>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    {% if session.user_id %}
+    <div class="sidebar-create">
+      <button class="sidebar-create-btn" onclick="location.href='{{ url_for('create_post') }}'"><i class="fas fa-plus"></i> Новый пост</button>
+      <button class="sidebar-create-btn" onclick="location.href='{{ url_for('create_community') }}'"><i class="fas fa-users"></i> Сообщество</button>
     </div>
+    <div class="sidebar-divider"></div>
+    {% endif %}
+    <ul class="sidebar-nav">
+      <li><a href="{{ url_for('index') }}"><i class="fas fa-house"></i>Главная</a></li>
+      <li><a href="{{ url_for('hot_posts') }}"><i class="fas fa-fire"></i>Горячее</a></li>
+      <li><a href="{{ url_for('communities_list') }}"><i class="fas fa-layer-group"></i>Сообщества</a></li>
+      <li><a href="{{ url_for('search_posts') }}"><i class="fas fa-magnifying-glass"></i>Поиск</a></li>
+      {% if session.user_id %}
+      <li><a href="{{ url_for('bookmarks') }}"><i class="fas fa-bookmark"></i>Закладки</a></li>
+      <li><a href="{{ url_for('my_communities') }}"><i class="fas fa-list-ul"></i>Мои сообщества</a></li>
+      <li><a href="{{ url_for('user_profile', username=session.username) }}"><i class="fas fa-user"></i>Мой профиль</a></li>
+      {% if is_moderator_global() %}
+      <li><a href="{{ url_for('moderation_reports') }}"><i class="fas fa-shield-halved"></i>Модерация{% if get_moderation_count() > 0 %}<span class="badge">{{ get_moderation_count() }}</span>{% endif %}</a></li>
+      {% endif %}
+      {% if is_admin() %}
+      <li><a href="{{ url_for('admin_panel') }}"><i class="fas fa-crown"></i>Администрирование</a></li>
+      {% endif %}
+      {% endif %}
+    </ul>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Популярные</div>
+      <ul class="sidebar-comm-list">
+        {% for community in get_popular_communities()[:6] %}
+        <li><a href="{{ url_for('community_detail', community_name=community.name) }}"><span class="comm-ava-sm">{{ community.name|first|upper }}</span>r/{{ community.name }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <ul class="sidebar-comm-list">
+        <li><a href="{{ url_for('terms') }}"><i class="fas fa-file-lines" style="width:16px;font-size:12px;color:var(--text-3)"></i>Соглашение</a></li>
+        <li><a href="{{ url_for('faq') }}"><i class="fas fa-circle-question" style="width:16px;font-size:12px;color:var(--text-3)"></i>FAQ</a></li>
+      </ul>
+    </div>
+  </aside>
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Подсветка активной вкладки
-        const currentPath = window.location.pathname;
-        document.querySelectorAll('.nav-tab a').forEach(link => {
-            if (link.getAttribute('href') === currentPath) {
-                link.classList.add('active');
-            }
-        });
+  <main class="main" id="mainContent">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for category, message in messages %}
+        <div class="flash flash-{{ 'error' if category == 'danger' else category }}">
+          <i class="fas {% if category == 'success' %}fa-circle-check{% elif category in ['danger','error'] %}fa-circle-xmark{% elif category == 'warning' %}fa-triangle-exclamation{% else %}fa-circle-info{% endif %}"></i>
+          {{ message }}
+        </div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
 
-        // Автоматическое скрытие алертов через 5 секунд
-        const alerts = document.querySelectorAll('.alert');
-        alerts.forEach(alert => {
-            setTimeout(() => {
-                alert.style.transition = 'opacity 0.5s';
-                alert.style.opacity = '0';
-                setTimeout(() => alert.remove(), 500);
-            }, 5000);
-        });
-    });
-    </script>
+<script>
+(function(){
+  var sb=document.getElementById('sidebar'),main=document.getElementById('mainContent'),ov=document.getElementById('sidebarOverlay'),tgl=document.getElementById('sidebarToggle');
+  var BP=720;
+  function mob(){return window.innerWidth<=BP;}
+  if(!mob()&&localStorage.getItem('sb')==='closed'){sb.classList.add('collapsed');main.classList.add('full');}
+  tgl.addEventListener('click',function(){
+    if(mob()){var o=sb.classList.toggle('open');ov.classList.toggle('show',o);document.body.classList.toggle('sb-lock',o);}
+    else{var c=sb.classList.toggle('collapsed');main.classList.toggle('full',c);localStorage.setItem('sb',c?'closed':'open');}
+  });
+  ov.addEventListener('click',function(){sb.classList.remove('open');ov.classList.remove('show');document.body.classList.remove('sb-lock');});
+  window.addEventListener('resize',function(){if(!mob()){sb.classList.remove('open');ov.classList.remove('show');document.body.classList.remove('sb-lock');}});
+  var path=window.location.pathname;
+  document.querySelectorAll('.sidebar-nav a').forEach(function(a){if(a.getAttribute('href')===path)a.classList.add('active');});
+  document.querySelectorAll('[data-confirm]').forEach(function(el){el.addEventListener('click',function(e){if(!confirm(this.dataset.confirm))e.preventDefault();});});
+})();
+</script>
+{% block scripts %}{% endblock %}
 </body>
 </html>
