@@ -3,84 +3,183 @@
 
 {% block content %}
 <div class="feed-wrap">
-<div class="page-hdr">
-  <h1>Редактировать пост</h1>
-</div>
+  <div class="page-hdr">
+    <h1>Редактировать пост</h1>
+  </div>
 
-<div class="card">
-  <form method="POST" id="editForm" enctype="multipart/form-data">
-    <div class="form-group">
-      <label class="form-label" for="editTitle">
-        Заголовок <span class="req">*</span>
-      </label>
-      <input type="text" name="title" id="editTitle" class="form-input"
-             value="{{ post.title }}" required maxlength="300" autocomplete="off">
-      <div class="form-hint"><span id="titleCount">{{ post.title | length }}</span> / 300</div>
-    </div>
-
-    <div class="form-group">
-      <label class="form-label">Содержание <span class="req">*</span></label>
-      <textarea id="editContent" name="content">{{ post.content | safe }}</textarea>
-    </div>
-
-    <!-- Область загрузки изображений -->
-    <div class="form-group">
-      <label class="form-label">Добавить изображения</label>
-      <div class="upload-zone" id="uploadZone">
-        <i class="fas fa-cloud-upload-alt"></i>
-        <p>Перетащите изображения сюда или нажмите для выбора</p>
-        <small>Поддерживаются: PNG, JPG, JPEG, GIF, WEBP (до 16 МБ)</small>
-        <input type="file" id="fileInput" multiple accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
+  <div class="card">
+    <form method="POST" id="editForm">
+      <div class="form-group">
+        <label class="form-label" for="editTitle">
+          Заголовок <span class="req">*</span>
+        </label>
+        <input type="text" name="title" id="editTitle" class="form-input"
+               value="{{ post.title }}" required maxlength="300" autocomplete="off">
+        <div class="form-hint"><span id="titleCount">{{ post.title | length }}</span> / 300</div>
       </div>
-      <div class="img-previews" id="imagePreviews"></div>
-    </div>
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">
-        <i class="fas fa-floppy-disk"></i> Сохранить изменения
-      </button>
-      <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-ghost">Отмена</a>
-    </div>
-  </form>
+      <div class="form-group">
+        <label class="form-label">Содержание <span class="req">*</span></label>
+        <textarea id="editContent" name="content">{{ post.content | safe }}</textarea>
+      </div>
+
+      <!-- Зона загрузки изображений и видео -->
+      <div class="form-group">
+        <label class="form-label">Добавить изображения и видео</label>
+        <div class="upload-zone" id="uploadZone">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <p>Перетащите изображения или короткие видео сюда<br>или нажмите для выбора</p>
+          <small>Изображения: PNG, JPG, GIF, WEBP<br>Видео: MP4, WEBM (до 30 МБ)</small>
+          <input type="file" id="fileInput" multiple accept="image/*,video/mp4,video/webm">
+        </div>
+        <div class="img-previews" id="imagePreviews"></div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-floppy-disk"></i> Сохранить изменения
+        </button>
+        <a href="{{ url_for('post_detail', post_id=post.id) }}" class="btn btn-ghost">Отмена</a>
+      </div>
+    </form>
+  </div>
 </div>
-</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.tiny.cloud/1/t4sz6siquna8c2qwiiui5f0pru19ajpggk7u0xkvp5n5odrd/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+// TinyMCE инициализация
+tinymce.init({
+  selector: '#editContent',
+  language: 'ru',
+  height: 420,
+  menubar: false,
+  branding: false,
+  resize: 'vertical',
+  plugins: 'lists link image table code fullscreen autolink',
+  toolbar: 'bold italic underline strikethrough | blocks | bullist numlist | blockquote link image table | code fullscreen',
+  content_style: 'body{font-family:inherit;font-size:15px;line-height:1.65;color:#1a1916;padding:10px 14px;margin:0} img,video{max-width:100%;height:auto;border-radius:8px;display:block;margin:.5em 0}',
+
+  images_upload_url: '/upload',
+  automatic_uploads: true,
+  file_picker_types: 'image video',
+
+  images_upload_handler: function(blobInfo) {
+    return new Promise((resolve, reject) => {
+      const fd = new FormData();
+      fd.append('file', blobInfo.blob(), blobInfo.filename());
+
+      fetch('/upload', {
+        method: 'POST',
+        body: fd
+      })
+      .then(r => r.json())
+      .then(data => data.location ? resolve(data.location) : reject('Ошибка'))
+      .catch(() => reject('Сетевая ошибка'));
+    });
+  }
+});
+
+// Drag & Drop загрузка
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+const imagePreviews = document.getElementById('imagePreviews');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  uploadFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => uploadFiles(Array.from(fileInput.files)));
+
+function uploadFiles(files) {
+  for (const file of files) {
+    const type = file.type.split('/')[0];
+    if (type !== 'image' && type !== 'video') continue;
+
+    if (file.size > 30 * 1024 * 1024) {
+      alert(`Файл ${file.name} слишком большой (максимум 30 МБ)`);
+      continue;
+    }
+
+    const previewId = 'preview_' + Date.now();
+    const previewDiv = document.createElement('div');
+    previewDiv.className = 'img-preview';
+    previewDiv.id = previewId;
+    previewDiv.innerHTML = `<div class="upload-status">Загрузка...</div>`;
+    imagePreviews.appendChild(previewDiv);
+
+    // Превью
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const el = document.createElement(type === 'image' ? 'img' : 'video');
+      el.src = e.target.result;
+      if (type === 'video') el.controls = true;
+      previewDiv.insertBefore(el, previewDiv.firstChild);
+    };
+    reader.readAsDataURL(file);
+
+    // Загрузка на сервер
+    const formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/upload', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.location) {
+          const status = previewDiv.querySelector('.upload-status');
+          status.textContent = 'Готово';
+          status.style.background = 'var(--green)';
+
+          const editor = tinymce.get('editContent');
+          if (editor) {
+            const tag = type === 'image' ? 'img' : 'video';
+            editor.insertContent(`<${tag} src="${data.location}" ${type === 'video' ? 'controls' : ''} style="max-width:100%;border-radius:8px;margin:10px 0"></${tag}>`);
+          }
+        }
+      })
+      .catch(() => {
+        previewDiv.querySelector('.upload-status').textContent = 'Ошибка';
+      });
+  }
+}
+
+document.getElementById('editTitle').addEventListener('input', function() {
+  document.getElementById('titleCount').textContent = this.value.length;
+});
+
+document.getElementById('editForm').addEventListener('submit', function() {
+  const ed = tinymce.get('editContent');
+  if (ed) ed.save();
+
+  const title = document.getElementById('editTitle').value.trim();
+  if (!title) {
+    alert('Введите заголовок');
+    return false;
+  }
+});
+</script>
 
 <style>
 .upload-zone {
     border: 2px dashed var(--border);
     border-radius: var(--r);
-    padding: 24px 20px;
+    padding: 30px 20px;
     text-align: center;
     cursor: pointer;
-    transition: all 0.2s ease;
     background: var(--bg-input);
-    position: relative;
+    transition: all 0.2s ease;
 }
-.upload-zone:hover, .upload-zone.drag-over {
+.upload-zone.drag-over {
     border-color: var(--accent);
     background: var(--accent-soft);
-}
-.upload-zone i {
-    font-size: 32px;
-    color: var(--accent);
-    margin-bottom: 8px;
-}
-.upload-zone p {
-    font-size: 14px;
-    color: var(--text-2);
-    margin-bottom: 4px;
-}
-.upload-zone small {
-    font-size: 12px;
-    color: var(--text-3);
-}
-.upload-zone input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-    width: 100%;
-    height: 100%;
 }
 .img-previews {
     display: flex;
@@ -90,40 +189,18 @@
 }
 .img-preview {
     position: relative;
-    width: 100px;
-    height: 100px;
+    width: 120px;
+    height: 120px;
     border-radius: var(--r);
     overflow: hidden;
     border: 1px solid var(--border);
-    background: var(--bg-input);
 }
-.img-preview img {
+.img-preview img, .img-preview video {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
-.img-preview .remove-img {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 22px;
-    height: 22px;
-    background: rgba(0,0,0,0.6);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 10px;
-    transition: all 0.2s ease;
-}
-.img-preview .remove-img:hover {
-    background: var(--red);
-    transform: scale(1.1);
-}
-.img-preview .upload-status {
+.upload-status {
     position: absolute;
     bottom: 0;
     left: 0;
@@ -135,175 +212,4 @@
     padding: 2px;
 }
 </style>
-
-{% endblock %}
-
-{% block scripts %}
-<script src="https://cdn.tiny.cloud/1/t4sz6siquna8c2qwiiui5f0pru19ajpggk7u0xkvp5n5odrd/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
-<script>
-let uploadedImages = [];
-
-tinymce.init({
-  selector: '#editContent',
-  language: 'ru',
-  height: 380,
-  min_height: 260,
-  menubar: false,
-  branding: false,
-  resize: 'vertical',
-  plugins: 'lists link image table code fullscreen autolink',
-  toolbar: 'bold italic underline strikethrough | blocks | bullist numlist | blockquote link image table | code fullscreen',
-  toolbar_mode: 'sliding',
-  content_style: 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.65;color:#1a1916;padding:10px 14px;margin:0} p{margin:0 0 .75em} img{max-width:100%;height:auto;border-radius:8px;display:block;margin:.5em 0} blockquote{border-left:3px solid #e8402a;padding:6px 14px;margin:1em 0;background:#f0eeea;border-radius:0 5px 5px 0} pre{background:#1e1e1e;color:#d4d4d4;padding:14px;border-radius:6px;overflow-x:auto} code{background:#f0eeea;padding:2px 5px;border-radius:3px;font-size:13px}',
-
-  images_upload_url: '{{ url_for("upload_image") }}',
-  images_reuse_filename: false,
-  images_upload_credentials: true,
-  images_upload_handler: function(blobInfo, progress) {
-    return new Promise(function(resolve, reject) {
-      var fd = new FormData();
-      fd.append('file', blobInfo.blob(), blobInfo.filename());
-
-      var xhr = new XMLHttpRequest();
-      xhr.withCredentials = true;
-      xhr.open('POST', '{{ url_for("upload_image") }}');
-
-      xhr.upload.onprogress = function(e) {
-        if (e.lengthComputable) progress(e.loaded / e.total * 100);
-      };
-
-      xhr.onload = function() {
-        if (xhr.status === 401) {
-          reject({ message: 'Сессия истекла — войдите заново', remove: true });
-          return;
-        }
-        if (xhr.status < 200 || xhr.status >= 300) {
-          reject('Ошибка загрузки: HTTP ' + xhr.status);
-          return;
-        }
-        try {
-          var json = JSON.parse(xhr.responseText);
-          if (!json.location) { reject('Сервер не вернул URL'); return; }
-          resolve(json.location);
-        } catch(e) {
-          reject('Неверный ответ сервера');
-        }
-      };
-
-      xhr.onerror = function() { reject('Сетевая ошибка при загрузке'); };
-      xhr.send(fd);
-    });
-  }
-});
-
-// Загрузка файлов через drag & drop
-const uploadZone = document.getElementById('uploadZone');
-const fileInput = document.getElementById('fileInput');
-const imagePreviews = document.getElementById('imagePreviews');
-
-uploadZone.addEventListener('click', () => fileInput.click());
-uploadZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  uploadZone.classList.add('drag-over');
-});
-uploadZone.addEventListener('dragleave', () => {
-  uploadZone.classList.remove('drag-over');
-});
-uploadZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  uploadZone.classList.remove('drag-over');
-  const files = Array.from(e.dataTransfer.files);
-  uploadFiles(files);
-});
-fileInput.addEventListener('change', (e) => {
-  uploadFiles(Array.from(e.target.files));
-});
-
-async function uploadFiles(files) {
-  const imageFiles = files.filter(f => f.type.startsWith('image/'));
-
-  for (const file of imageFiles) {
-    if (file.size > 16 * 1024 * 1024) {
-      alert(`Файл ${file.name} превышает 16 МБ`);
-      continue;
-    }
-
-    const previewId = Date.now() + Math.random();
-    const previewDiv = document.createElement('div');
-    previewDiv.className = 'img-preview';
-    previewDiv.id = `preview-${previewId}`;
-    previewDiv.innerHTML = `
-      <div class="upload-status">Загрузка...</div>
-      <button class="remove-img" onclick="removePreview('${previewId}')">×</button>
-    `;
-    imagePreviews.appendChild(previewDiv);
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const img = document.createElement('img');
-      img.src = e.target.result;
-      previewDiv.insertBefore(img, previewDiv.firstChild);
-    };
-    reader.readAsDataURL(file);
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('{{ url_for("upload_image") }}', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        uploadedImages.push(data.location);
-        previewDiv.querySelector('.upload-status').textContent = 'Готово';
-        previewDiv.querySelector('.upload-status').style.background = 'var(--green)';
-
-        const editor = tinymce.get('editContent');
-        if (editor) {
-          editor.insertContent(`<img src="${data.location}" alt="${file.name}" style="max-width:100%;border-radius:8px;margin:10px 0">`);
-        }
-      } else {
-        previewDiv.querySelector('.upload-status').textContent = 'Ошибка';
-        previewDiv.querySelector('.upload-status').style.background = 'var(--red)';
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      previewDiv.querySelector('.upload-status').textContent = 'Ошибка';
-      previewDiv.querySelector('.upload-status').style.background = 'var(--red)';
-    }
-
-    setTimeout(() => {
-      const status = previewDiv.querySelector('.upload-status');
-      if (status && status.textContent !== 'Ошибка') {
-        status.style.opacity = '0';
-        setTimeout(() => status.remove(), 500);
-      }
-    }, 2000);
-  }
-}
-
-function removePreview(previewId) {
-  const preview = document.getElementById(`preview-${previewId}`);
-  if (preview) {
-    preview.remove();
-  }
-}
-
-document.getElementById('editTitle').addEventListener('input', function() {
-  document.getElementById('titleCount').textContent = this.value.length;
-});
-
-document.getElementById('editForm').addEventListener('submit', function(e) {
-  var ed = tinymce.get('editContent');
-  if (ed) ed.save();
-  var title   = document.getElementById('editTitle').value.trim();
-  var content = ed ? ed.getContent().replace(/<[^>]*>/g, '').trim() : '';
-  if (!title)   { e.preventDefault(); alert('Введите заголовок'); return; }
-  if (!content) { e.preventDefault(); alert('Содержание не может быть пустым'); return; }
-});
-</script>
 {% endblock %}

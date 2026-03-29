@@ -457,3 +457,97 @@ body.sb-lock{overflow:hidden}
 .role-pill.moderator{background:rgba(37,99,235,.12);color:#2563eb}
 .role-pill.user{background:var(--bg-input);color:var(--text-3)}
 .role-pill.banned{background:rgba(220,38,38,.12);color:var(--red)}
+/* Адаптивные изображения и видео в ленте */
+.post-excerpt img,
+.post-excerpt video {
+    max-width: 100%;
+    max-height: 380px;           /* Максимальная высота в ленте */
+    width: auto;
+    height: auto;
+    border-radius: 10px;
+    margin: 12px 0;
+    display: block;
+    object-fit: contain;         /* Сохраняет пропорции */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Для полного поста (post_detail) делаем чуть больше */
+.post-full-body img,
+.post-full-body video {
+    max-width: 100%;
+    max-height: 520px;
+    border-radius: 12px;
+    margin: 15px 0;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Если несколько изображений подряд */
+.post-excerpt img + img,
+.post-excerpt video + video {
+    margin-top: 8px;
+}
+/* === МЕДИА В ЛЕНТЕ И ПОСТАХ === */
+.post-card .post-excerpt img,
+.post-card .post-excerpt video {
+    max-width: 100%;
+    max-height: 360px;
+    width: auto;
+    height: auto;
+    border-radius: 10px;
+    margin: 10px 0 14px 0;
+    display: block;
+    object-fit: contain;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.07);
+}
+
+.post-full-body img,
+.post-full-body video {
+    max-width: 100%;
+    max-height: 560px;
+    border-radius: 12px;
+    margin: 16px 0;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+/* Если в посте несколько медиафайлов */
+.post-excerpt img + img,
+.post-excerpt video + img,
+.post-excerpt img + video,
+.post-excerpt video + video {
+    margin-top: 10px;
+}
+/* === ОДИНАКОВЫЕ КАРТИНКИ В ЛЕНТЕ === */
+.post-card .post-excerpt {
+    position: relative;
+}
+
+.post-card .post-excerpt img,
+.post-card .post-excerpt video {
+    width: 100%;                    /* Полная ширина карточки */
+    max-height: 320px;              /* Фиксированная максимальная высота */
+    height: 320px;                  /* Фиксированная высота */
+    object-fit: cover;              /* Обрезает лишнее, чтобы заполнить область */
+    border-radius: 10px;
+    margin: 10px 0 14px 0;
+    display: block;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Для полного просмотра поста делаем чуть свободнее */
+.post-full-body img,
+.post-full-body video {
+    width: 100%;
+    max-height: 520px;
+    height: auto;
+    object-fit: contain;
+    border-radius: 12px;
+    margin: 16px 0;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Если несколько медиафайлов подряд */
+.post-excerpt img + img,
+.post-excerpt video + video,
+.post-excerpt img + video {
+    margin-top: 12px;
+}

@@ -40,7 +40,7 @@
     </h2>
 
     {% if post.content %}
-    <div class="post-excerpt">{{ post.content | striptags | truncate(260, True, '…') }}</div>
+    <div class="post-excerpt">{{ post.content | safe }}</div>
     {% endif %}
 
     <div class="post-actions">

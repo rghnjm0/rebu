@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import os
 import re
+from flask import send_from_directory
 from functools import wraps
 from werkzeug.utils import secure_filename
 import uuid
@@ -15,16 +16,24 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or os.urandom(32)
 app.config['DATABASE'] = 'instance/app.db'
 app.config['UPLOAD_FOLDER'] = 'static/uploads/posts'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 МБ
 POSTS_PER_PAGE = 20
 
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'images'), exist_ok=True)
+os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'videos'), exist_ok=True)
 
+ALLOWED_IMAGES = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+ALLOWED_VIDEOS = {'mp4', 'webm'}
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
+    if '.' not in filename:
+        return False
+    ext = filename.rsplit('.', 1)[1].lower()
+    if ext in ALLOWED_IMAGES:
+        return 'image'
+    if ext in ALLOWED_VIDEOS:
+        return 'video'
+    return None
 
 def login_required(f):
     @wraps(f)
@@ -650,108 +659,94 @@ def privacy_policy():
     return redirect(url_for('terms'))
 
 
-@app.route('/create', methods=['GET', 'POST'])
+@app.route('/create_post', methods=['GET', 'POST'])
 @login_required
 @not_banned
 def create_post():
     db = get_db()
     cursor = db.cursor()
-    cursor.execute('''
-        SELECT c.* FROM communities c
-        JOIN community_subscriptions cs ON c.id = cs.community_id
-        WHERE cs.user_id = ?
-        ORDER BY c.name
-    ''', (session['user_id'],))
-    user_communities = cursor.fetchall()
+    cursor.execute("SELECT id, name, display_name FROM communities ORDER BY name")
+    communities = cursor.fetchall()
+
     if request.method == 'POST':
-        title = request.form['title'].strip()
-        content = request.form['content'].strip()
-        post_type = request.form.get('post_type', 'text')
-        community_id = request.form.get('community_id', '')
-        import re as _re
-        content_text = _re.sub(r'<[^>]+>', '', content).strip()
-        if not title or not content_text:
-            flash('Заполните все обязательные поля', 'danger')
-            return redirect(url_for('create_post'))
+        title = request.form.get('title', '').strip()
+        content = request.form.get('content', '').strip()
+        community_id = request.form.get('community_id')
+
+        if not title or len(title) < 3:
+            flash('Заголовок должен быть не короче 3 символов', 'danger')
+            return render_template('create_post.html', communities=communities)
+
         if community_id:
-            cursor.execute('SELECT id, name FROM communities WHERE id = ?', (community_id,))
-            community = cursor.fetchone()
-            if not community:
-                flash('Указанное сообщество не существует', 'danger')
-                return redirect(url_for('create_post'))
-        try:
-            cursor.execute(
-                'INSERT INTO posts (title, content, user_id, post_type, community_id, is_deleted) VALUES (?, ?, ?, ?, ?, 0)',
-                (title, content, session['user_id'], post_type, community_id if community_id else None)
-            )
-            post_id = cursor.lastrowid
-            db.commit()
-            log_moderation_action(
-                session['user_id'],
-                'create_post',
-                'post',
-                post_id,
-                f'Created post: {title[:50]}'
-            )
-            flash('Пост создан успешно!', 'success')
-            return redirect(url_for('post_detail', post_id=post_id))
-        except Exception as e:
-            db.rollback()
-            flash(f'Ошибка при создании поста: {str(e)}', 'danger')
-            return redirect(url_for('create_post'))
-    preselect_community = request.args.get('community', '')
-    return render_template('create_post.html', communities=user_communities, preselect_community=preselect_community)
+            try:
+                community_id = int(community_id)
+            except:
+                community_id = None
+
+        cursor.execute('''
+            INSERT INTO posts (title, content, user_id, community_id, post_type)
+            VALUES (?, ?, ?, ?, 'rich')
+        ''', (title, content, session['user_id'], community_id))
+        db.commit()
+
+        post_id = cursor.lastrowid
+        flash('Пост успешно опубликован!', 'success')
+        return redirect(url_for('post_detail', post_id=post_id))
+
+    return render_template('create_post.html', communities=communities)
 
 
-@app.route('/upload_image', methods=['POST'])
-def upload_image():
-    """Загрузка изображений для TinyMCE и через форму"""
-    # Проверяем авторизацию
+@app.route('/upload', methods=['POST'])
+def upload_file():
     if 'user_id' not in session:
         return jsonify({'error': 'Необходимо войти в систему'}), 401
 
-    # Проверяем наличие файла
     if 'file' not in request.files:
-        return jsonify({'error': 'Файл не передан'}), 400
-
-    file = request.files['file']
-
-    # Проверяем, выбран ли файл
-    if not file or file.filename == '':
         return jsonify({'error': 'Файл не выбран'}), 400
 
-    # Проверяем расширение
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'Недопустимый формат. Поддерживаются: png, jpg, jpeg, gif, webp'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'Файл не выбран'}), 400
+
+    file_type = allowed_file(file.filename)
+    if not file_type:
+        return jsonify({'error': 'Недопустимый формат файла'}), 400
+
+    # Проверка размера (изображения — 15 МБ, видео — 30 МБ)
+    max_size = 15 * 1024 * 1024 if file_type == 'image' else 30 * 1024 * 1024
+    if file.content_length and file.content_length > max_size:
+        return jsonify({'error': f'Файл слишком большой (макс. {max_size//(1024*1024)} МБ)'}), 400
+
+    subfolder = 'images' if file_type == 'image' else 'videos'
+    folder = os.path.join(app.config['UPLOAD_FOLDER'], subfolder)
+
+    filename = f"{uuid.uuid4().hex}.{file.filename.rsplit('.', 1)[1].lower()}"
+    filepath = os.path.join(folder, filename)
 
     try:
-        # Создаем безопасное имя файла
-        original_name = secure_filename(file.filename)
-        name, ext = os.path.splitext(original_name)
-        unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}{ext}"
-
-        # Создаем папку если её нет
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-        # Сохраняем файл
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
         file.save(filepath)
-
-        # Проверяем, что файл действительно сохранился
-        if not os.path.exists(filepath):
-            return jsonify({'error': 'Ошибка сохранения файла'}), 500
-
-        # Формируем URL для доступа к файлу
-        file_url = url_for('static', filename=f'uploads/posts/{unique_name}')
-
-        print(f"Файл сохранен: {filepath}")
-        print(f"URL для доступа: {file_url}")
-
-        return jsonify({'location': file_url}), 200
-
+        url = f"/static/uploads/posts/{subfolder}/{filename}"
+        return jsonify({
+            'location': url,
+            'type': file_type
+        })
     except Exception as e:
-        print(f"Ошибка при загрузке: {str(e)}")
-        return jsonify({'error': f'Ошибка при загрузке: {str(e)}'}), 500
+        return jsonify({'error': 'Ошибка сохранения файла'}), 500
+
+# ====================== ОТДАЧА ЗАГРУЖЕННЫХ ФАЙЛОВ ======================
+@app.route('/static/uploads/posts/<path:filename>')
+def uploaded_file(filename):
+    """Отдаёт изображения и видео из uploads/posts"""
+    try:
+        return send_from_directory(
+            directory=app.config['UPLOAD_FOLDER'],
+            path=filename,          # важно использовать path для подпапок images/ и videos/
+            as_attachment=False
+        )
+    except FileNotFoundError:
+        return "Файл не найден", 404
+    except Exception as e:
+        return f"Ошибка: {str(e)}", 500
 
 @app.route('/vote/<int:post_id>/<string:vote_type>')
 @login_required
@@ -1040,33 +1035,35 @@ def delete_comment(comment_id):
     return redirect(request.referrer or url_for('post_detail', post_id=comment['post_id']))
 
 
-@app.route('/post/<int:post_id>/edit', methods=['GET', 'POST'])
+@app.route('/edit_post/<int:post_id>', methods=['GET', 'POST'])
 @login_required
 @not_banned
 def edit_post(post_id):
     db = get_db()
     cursor = db.cursor()
-    cursor.execute('SELECT * FROM posts WHERE id = ? AND is_deleted = 0', (post_id,))
+
+    cursor.execute('SELECT * FROM posts WHERE id = ? AND user_id = ?', (post_id, session['user_id']))
     post = cursor.fetchone()
+
     if not post:
-        flash('Пост не найден', 'danger')
+        flash('Пост не найден или у вас нет прав', 'danger')
         return redirect(url_for('index'))
-    if post['user_id'] != session['user_id'] and not is_moderator_global(session['user_id']):
-        flash('Нет прав для редактирования', 'danger')
-        return redirect(url_for('post_detail', post_id=post_id))
+
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         content = request.form.get('content', '').strip()
-        import re as _re
-        content_text = _re.sub(r'<[^>]+>', '', content).strip()
-        if not title or not content_text:
-            flash('Заполните все поля', 'danger')
-            return redirect(url_for('edit_post', post_id=post_id))
+
+        if not title or len(title) < 3:
+            flash('Заголовок обязателен', 'danger')
+            return render_template('edit_post.html', post=post)
+
         cursor.execute('UPDATE posts SET title = ?, content = ? WHERE id = ?',
                        (title, content, post_id))
         db.commit()
+
         flash('Пост обновлён', 'success')
         return redirect(url_for('post_detail', post_id=post_id))
+
     return render_template('edit_post.html', post=post)
 
 

@@ -3,182 +3,78 @@
 
 {% block content %}
 <div class="feed-wrap">
-<div class="page-hdr">
-  <h1>Создать пост</h1>
-  <p>Используйте кнопку <i class="fas fa-image" style="color:var(--accent)"></i> в редакторе для вставки изображений или загружайте файлы ниже</p>
-</div>
+  <div class="page-hdr">
+    <h1>Создать пост</h1>
+    <p>Поддерживаются изображения и короткие видео. Используйте редактор или зону загрузки ниже.</p>
+  </div>
 
-<div class="card">
-  <form method="POST" id="postForm">
-    <div class="form-group">
-      <label class="form-label">Сообщество</label>
-      <select name="community_id" class="form-select" id="communitySelect">
-        <option value="">— Общая лента —</option>
-        {% for community in communities %}
-        <option value="{{ community.id }}"
-          {% if preselect_community and community.id|string == preselect_community|string %}selected{% endif %}>
-          r/{{ community.name }} — {{ community.display_name }}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
+  <div class="card">
+    <form method="POST" id="postForm">
+      <div class="form-group">
+        <label class="form-label">Сообщество</label>
+        <select name="community_id" class="form-select" id="communitySelect">
+          <option value="">— Общая лента —</option>
+          {% for community in communities %}
+          <option value="{{ community.id }}"
+            {% if preselect_community and community.id|string == preselect_community|string %}selected{% endif %}>
+            r/{{ community.name }} — {{ community.display_name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
 
-    <div class="form-group">
-      <label class="form-label" for="postTitle">
-        Заголовок <span class="req">*</span>
-      </label>
-      <input type="text" name="title" id="postTitle" class="form-input"
-             placeholder="Введите заголовок поста" required maxlength="300" autocomplete="off">
-      <div class="form-hint"><span id="titleCount">0</span> / 300</div>
-    </div>
+      <div class="form-group">
+        <label class="form-label" for="postTitle">
+          Заголовок <span class="req">*</span>
+        </label>
+        <input type="text" name="title" id="postTitle" class="form-input"
+               placeholder="Введите заголовок поста" required maxlength="300">
+        <div class="form-hint"><span id="titleCount">0</span> / 300</div>
+      </div>
 
-    <div class="form-group">
-      <label class="form-label">Содержание <span class="req">*</span></label>
-      <div id="editorWrap">
+      <div class="form-group">
+        <label class="form-label">Содержание <span class="req">*</span></label>
         <textarea id="postContent" name="content"></textarea>
       </div>
-    </div>
 
-    <!-- Область загрузки изображений -->
-    <div class="form-group">
-      <label class="form-label">Загрузка изображений</label>
-      <div class="upload-zone" id="uploadZone">
-        <i class="fas fa-cloud-upload-alt"></i>
-        <p>Перетащите изображения сюда или нажмите для выбора</p>
-        <small>Поддерживаются: PNG, JPG, JPEG, GIF, WEBP (до 16 МБ)</small>
-        <input type="file" id="fileInput" multiple accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
+      <!-- Зона загрузки изображений и видео -->
+      <div class="form-group">
+        <label class="form-label">Загрузка изображений и видео</label>
+        <div class="upload-zone" id="uploadZone">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <p>Перетащите изображения или видео сюда<br>или нажмите для выбора</p>
+          <small>Изображения: PNG, JPG, GIF, WEBP<br>Видео: MP4, WEBM (до 30 МБ)</small>
+          <input type="file" id="fileInput" multiple accept="image/*,video/mp4,video/webm">
+        </div>
+        <div class="img-previews" id="imagePreviews"></div>
+        <div id="uploadError" style="color: var(--red); margin-top: 8px; display: none;"></div>
       </div>
-      <div class="img-previews" id="imagePreviews"></div>
-      <div id="uploadError" style="color: var(--red); margin-top: 8px; display: none;"></div>
-    </div>
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">
-        <i class="fas fa-paper-plane"></i> Опубликовать
-      </button>
-      <button type="button" class="btn btn-ghost" onclick="clearForm()">
-        <i class="fas fa-xmark"></i> Очистить
-      </button>
-      <a href="{{ url_for('index') }}" class="btn btn-ghost">Отмена</a>
-    </div>
-  </form>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-paper-plane"></i> Опубликовать
+        </button>
+        <button type="button" class="btn btn-ghost" onclick="clearForm()">
+          <i class="fas fa-xmark"></i> Очистить
+        </button>
+        <a href="{{ url_for('index') }}" class="btn btn-ghost">Отмена</a>
+      </div>
+    </form>
+  </div>
 </div>
-</div>
-
-<style>
-.upload-zone {
-    border: 2px dashed var(--border);
-    border-radius: var(--r);
-    padding: 24px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    background: var(--bg-input);
-    position: relative;
-}
-.upload-zone.drag-over {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-}
-.upload-zone i {
-    font-size: 32px;
-    color: var(--accent);
-    margin-bottom: 8px;
-}
-.upload-zone p {
-    font-size: 14px;
-    color: var(--text-2);
-    margin-bottom: 4px;
-}
-.upload-zone small {
-    font-size: 12px;
-    color: var(--text-3);
-}
-.upload-zone input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-    width: 100%;
-    height: 100%;
-}
-.img-previews {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 12px;
-}
-.img-preview {
-    position: relative;
-    width: 100px;
-    height: 100px;
-    border-radius: var(--r);
-    overflow: hidden;
-    border: 1px solid var(--border);
-    background: var(--bg-input);
-}
-.img-preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-.img-preview .remove-img {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 22px;
-    height: 22px;
-    background: rgba(0,0,0,0.6);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 10px;
-    transition: all 0.2s ease;
-    z-index: 10;
-}
-.img-preview .remove-img:hover {
-    background: var(--red);
-    transform: scale(1.1);
-}
-.img-preview .upload-status {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(0,0,0,0.7);
-    color: white;
-    font-size: 10px;
-    text-align: center;
-    padding: 2px;
-    z-index: 10;
-}
-.upload-error {
-    color: var(--red);
-    font-size: 12px;
-    margin-top: 8px;
-    padding: 8px;
-    background: rgba(220,38,38,0.1);
-    border-radius: var(--r);
-}
-</style>
-
 {% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.tiny.cloud/1/t4sz6siquna8c2qwiiui5f0pru19ajpggk7u0xkvp5n5odrd/tinymce/7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
-// Глобальный массив загруженных изображений
+// Глобальные переменные
 let uploadedImages = [];
 let currentUploads = new Map();
 
 tinymce.init({
   selector: '#postContent',
   language: 'ru',
-  height: 380,
+  height: 420,
   min_height: 260,
   menubar: false,
   branding: false,
@@ -186,11 +82,12 @@ tinymce.init({
   plugins: 'lists link image table code fullscreen autolink',
   toolbar: 'bold italic underline strikethrough | blocks | bullist numlist | blockquote link image table | code fullscreen',
   toolbar_mode: 'sliding',
-  content_style: 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.65;color:#1a1916;padding:10px 14px;margin:0} p{margin:0 0 .75em} img{max-width:100%;height:auto;border-radius:8px;display:block;margin:.5em 0} blockquote{border-left:3px solid #e8402a;padding:6px 14px;margin:1em 0;background:#f0eeea;border-radius:0 5px 5px 0} pre{background:#1e1e1e;color:#d4d4d4;padding:14px;border-radius:6px;overflow-x:auto} code{background:#f0eeea;padding:2px 5px;border-radius:3px;font-size:13px}',
+  content_style: 'body{font-family:inherit;font-size:15px;line-height:1.65;color:#1a1916;padding:10px 14px;margin:0} p{margin:0 0 .75em} img,video{max-width:100%;height:auto;border-radius:8px;display:block;margin:.5em 0}',
 
-  images_upload_url: '{{ url_for("upload_image") }}',
-  images_reuse_filename: false,
-  images_upload_credentials: true,
+  images_upload_url: '/upload',
+  automatic_uploads: true,
+  file_picker_types: 'image video',
+
   images_upload_handler: function(blobInfo, progress) {
     return new Promise(function(resolve, reject) {
       var fd = new FormData();
@@ -198,34 +95,27 @@ tinymce.init({
 
       var xhr = new XMLHttpRequest();
       xhr.withCredentials = true;
-      xhr.open('POST', '{{ url_for("upload_image") }}');
+      xhr.open('POST', '/upload');
 
       xhr.upload.onprogress = function(e) {
         if (e.lengthComputable) progress(e.loaded / e.total * 100);
       };
 
       xhr.onload = function() {
-        if (xhr.status === 401) {
-          reject({ message: 'Сессия истекла — войдите заново', remove: true });
-          return;
-        }
         if (xhr.status === 200) {
           try {
             var json = JSON.parse(xhr.responseText);
-            if (json.location) {
-              resolve(json.location);
-            } else {
-              reject('Сервер не вернул URL');
-            }
+            if (json.location) resolve(json.location);
+            else reject('Сервер не вернул URL');
           } catch(e) {
             reject('Неверный ответ сервера');
           }
         } else {
-          reject('Ошибка загрузки: HTTP ' + xhr.status);
+          reject('Ошибка загрузки: ' + xhr.status);
         }
       };
 
-      xhr.onerror = function() { reject('Сетевая ошибка при загрузке'); };
+      xhr.onerror = function() { reject('Сетевая ошибка'); };
       xhr.send(fd);
     });
   },
@@ -240,92 +130,72 @@ function debounce(fn, ms) {
   var t; return function() { clearTimeout(t); t = setTimeout(fn, ms); };
 }
 
-// Загрузка файлов через drag & drop
+// Drag & Drop загрузка
 const uploadZone = document.getElementById('uploadZone');
 const fileInput = document.getElementById('fileInput');
 const imagePreviews = document.getElementById('imagePreviews');
 const uploadError = document.getElementById('uploadError');
 
 uploadZone.addEventListener('click', () => fileInput.click());
-uploadZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  uploadZone.classList.add('drag-over');
-});
-uploadZone.addEventListener('dragleave', () => {
-  uploadZone.classList.remove('drag-over');
-});
+uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
 uploadZone.addEventListener('drop', (e) => {
   e.preventDefault();
   uploadZone.classList.remove('drag-over');
-  const files = Array.from(e.dataTransfer.files);
-  uploadFiles(files);
+  uploadFiles(Array.from(e.dataTransfer.files));
 });
 fileInput.addEventListener('change', (e) => {
   uploadFiles(Array.from(e.target.files));
-  fileInput.value = ''; // Очищаем input чтобы можно было загрузить те же файлы снова
+  fileInput.value = '';
 });
 
 async function uploadFiles(files) {
-  const imageFiles = files.filter(f => f.type.startsWith('image/'));
+  const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
 
-  if (imageFiles.length === 0) {
-    showError('Пожалуйста, выберите изображения (PNG, JPG, JPEG, GIF, WEBP)');
+  if (mediaFiles.length === 0) {
+    showError('Выберите изображения или видео');
     return;
   }
 
   hideError();
 
-  for (const file of imageFiles) {
-    // Проверка размера
-    if (file.size > 16 * 1024 * 1024) {
-      showError(`Файл ${file.name} превышает 16 МБ`);
+  for (const file of mediaFiles) {
+    if (file.size > 30 * 1024 * 1024) {
+      showError(`Файл ${file.name} слишком большой (макс. 30 МБ)`);
       continue;
     }
 
-    // Проверка типа
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      showError(`Файл ${file.name} имеет неподдерживаемый формат`);
-      continue;
-    }
-
-    const previewId = 'preview_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const previewId = 'preview_' + Date.now() + '_' + Math.random().toString(36).substr(2,9);
     const previewDiv = document.createElement('div');
     previewDiv.className = 'img-preview';
     previewDiv.id = previewId;
-    previewDiv.innerHTML = `
-      <div class="upload-status">Загрузка 0%</div>
-      <button class="remove-img" onclick="removePreview('${previewId}')">×</button>
-    `;
+    previewDiv.innerHTML = `<div class="upload-status">Загрузка...</div>`;
     imagePreviews.appendChild(previewDiv);
 
-    // Показываем превью
+    // Превью
     const reader = new FileReader();
     reader.onload = function(e) {
-      const img = document.createElement('img');
-      img.src = e.target.result;
-      previewDiv.insertBefore(img, previewDiv.firstChild);
+      const el = document.createElement(file.type.startsWith('image/') ? 'img' : 'video');
+      el.src = e.target.result;
+      if (el.tagName === 'VIDEO') el.controls = true;
+      previewDiv.insertBefore(el, previewDiv.firstChild);
     };
     reader.readAsDataURL(file);
 
-    // Загружаем файл
+    // Загрузка
     const formData = new FormData();
     formData.append('file', file);
 
-    currentUploads.set(previewId, { file, previewDiv });
-
     try {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', '{{ url_for("upload_image") }}');
+      xhr.open('POST', '/upload');
       xhr.withCredentials = true;
 
       xhr.upload.onprogress = function(e) {
         if (e.lengthComputable) {
           const percent = Math.round((e.loaded / e.total) * 100);
-          const statusDiv = previewDiv.querySelector('.upload-status');
-          if (statusDiv) {
-            statusDiv.textContent = `Загрузка ${percent}%`;
-          }
+          const status = previewDiv.querySelector('.upload-status');
+          if (status) status.textContent = `Загрузка ${percent}%`;
         }
       };
 
@@ -335,68 +205,31 @@ async function uploadFiles(files) {
             const response = JSON.parse(xhr.responseText);
             if (response.location) {
               uploadedImages.push(response.location);
-              const statusDiv = previewDiv.querySelector('.upload-status');
-              if (statusDiv) {
-                statusDiv.textContent = 'Готово ✓';
-                statusDiv.style.background = 'var(--green)';
+
+              const status = previewDiv.querySelector('.upload-status');
+              if (status) {
+                status.textContent = 'Готово ✓';
+                status.style.background = 'var(--green)';
               }
 
-              // Добавляем изображение в редактор
               const editor = tinymce.get('postContent');
               if (editor) {
-                editor.insertContent(`<img src="${response.location}" alt="${file.name}" style="max-width:100%;border-radius:8px;margin:10px 0">`);
+                const tag = file.type.startsWith('image/') ? 'img' : 'video';
+                editor.insertContent(`<${tag} src="${response.location}" ${tag === 'video' ? 'controls' : ''} style="max-width:100%;border-radius:8px;margin:10px 0"></${tag}>`);
               }
-
-              // Убираем статус через 2 секунды
-              setTimeout(() => {
-                if (statusDiv) statusDiv.style.display = 'none';
-              }, 2000);
-            } else {
-              throw new Error('Сервер не вернул URL');
             }
-          } catch (e) {
-            console.error('Parse error:', e);
-            const statusDiv = previewDiv.querySelector('.upload-status');
-            if (statusDiv) {
-              statusDiv.textContent = 'Ошибка';
-              statusDiv.style.background = 'var(--red)';
-            }
-            showError('Ошибка обработки ответа сервера');
+          } catch(e) {
+            showError('Ошибка обработки ответа');
           }
         } else {
-          console.error('Upload error:', xhr.status, xhr.responseText);
-          const statusDiv = previewDiv.querySelector('.upload-status');
-          if (statusDiv) {
-            statusDiv.textContent = 'Ошибка';
-            statusDiv.style.background = 'var(--red)';
-          }
-          showError(`Ошибка загрузки: ${xhr.status}`);
+          showError('Ошибка загрузки');
         }
-        currentUploads.delete(previewId);
-      };
-
-      xhr.onerror = function() {
-        console.error('Network error');
-        const statusDiv = previewDiv.querySelector('.upload-status');
-        if (statusDiv) {
-          statusDiv.textContent = 'Ошибка сети';
-          statusDiv.style.background = 'var(--red)';
-        }
-        showError('Сетевая ошибка при загрузке');
-        currentUploads.delete(previewId);
       };
 
       xhr.send(formData);
 
     } catch (error) {
-      console.error('Upload error:', error);
-      const statusDiv = previewDiv.querySelector('.upload-status');
-      if (statusDiv) {
-        statusDiv.textContent = 'Ошибка';
-        statusDiv.style.background = 'var(--red)';
-      }
-      showError(`Ошибка: ${error.message}`);
-      currentUploads.delete(previewId);
+      showError('Ошибка сети');
     }
   }
 }
@@ -404,9 +237,7 @@ async function uploadFiles(files) {
 function showError(message) {
   uploadError.textContent = message;
   uploadError.style.display = 'block';
-  setTimeout(() => {
-    uploadError.style.display = 'none';
-  }, 5000);
+  setTimeout(() => uploadError.style.display = 'none', 5000);
 }
 
 function hideError() {
@@ -415,26 +246,18 @@ function hideError() {
 
 function removePreview(previewId) {
   const preview = document.getElementById(previewId);
-  if (preview) {
-    // Удаляем из массива загруженных изображений
-    const img = preview.querySelector('img');
-    if (img && img.src) {
-      const index = uploadedImages.findIndex(url => url === img.src);
-      if (index !== -1) uploadedImages.splice(index, 1);
-    }
-    preview.remove();
-  }
+  if (preview) preview.remove();
 }
 
-// Draft
+// Черновик
 function saveDraft() {
   try {
     var ed = tinymce.get('postContent');
     localStorage.setItem('rebu_post_draft', JSON.stringify({
-      title:     document.getElementById('postTitle').value,
-      content:   ed ? ed.getContent() : '',
+      title: document.getElementById('postTitle').value,
+      content: ed ? ed.getContent() : '',
       community: document.getElementById('communitySelect').value,
-      ts:        Date.now()
+      ts: Date.now()
     }));
   } catch(e) {}
 }
@@ -444,15 +267,14 @@ function loadDraft() {
     var raw = localStorage.getItem('rebu_post_draft');
     if (!raw) return;
     var d = JSON.parse(raw);
-    if (Date.now() - d.ts > 86400000) { localStorage.removeItem('rebu_post_draft'); return; }
-    if (!(d.title || d.content)) return;
-    if (!confirm('Восстановить черновик от ' + new Date(d.ts).toLocaleString('ru') + '?')) {
-      localStorage.removeItem('rebu_post_draft'); return;
+    if (Date.now() - d.ts > 86400000) return;
+
+    if (confirm('Восстановить черновик?')) {
+      document.getElementById('postTitle').value = d.title || '';
+      if (d.community) document.getElementById('communitySelect').value = d.community;
+      var ed = tinymce.get('postContent');
+      if (ed) ed.setContent(d.content || '');
     }
-    document.getElementById('postTitle').value = d.title || '';
-    if (d.community) document.getElementById('communitySelect').value = d.community;
-    var ed = tinymce.get('postContent');
-    if (ed) ed.setContent(d.content || '');
   } catch(e) {}
 }
 
@@ -460,11 +282,9 @@ function clearForm() {
   if (!confirm('Очистить форму?')) return;
   document.getElementById('postTitle').value = '';
   document.getElementById('communitySelect').value = '';
-  var ed = tinymce.get('postContent');
-  if (ed) ed.setContent('');
+  tinymce.get('postContent').setContent('');
   imagePreviews.innerHTML = '';
   uploadedImages = [];
-  currentUploads.clear();
   localStorage.removeItem('rebu_post_draft');
   document.getElementById('titleCount').textContent = '0';
 }
@@ -484,4 +304,51 @@ document.getElementById('postForm').addEventListener('submit', function(e) {
   localStorage.removeItem('rebu_post_draft');
 });
 </script>
+
+<style>
+.upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--r);
+    padding: 24px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--bg-input);
+    position: relative;
+}
+.upload-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+.img-previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 12px;
+}
+.img-preview {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border-radius: var(--r);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+.img-preview img, .img-preview video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.upload-status {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 10px;
+    text-align: center;
+    padding: 2px;
+}
+</style>
 {% endblock %}
